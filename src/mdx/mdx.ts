@@ -12,6 +12,9 @@ import {
   ReactShape,
   SourceConfig,
 } from '../core'
+import admonitionPlgunin from '@docusaurus/mdx-loader/lib/remark/admonitions'
+import directivePlugin from 'remark-directive'
+import path from 'path'
 
 export class MdxDocNode extends AbstractFileDocNode implements IParsedDocNode {
   providerName: string = 'mdx-file'
@@ -36,6 +39,9 @@ export class MdxDocNode extends AbstractFileDocNode implements IParsedDocNode {
   async renderReact(react: ReactShape, opts: ReactOptions): Promise<ReactNode> {
     const mdx = await evaluate(this.ast(), {
       Fragment: react.Fragment,
+      jsx: react.createElement,
+      jsxs: react.createElement,
+      remarkPlugins: [directivePlugin, admonitionPlgunin],
     })
     return mdx.default(opts)
   }
@@ -81,8 +87,9 @@ export class MdxFileProvider implements DocProvider {
     }
     const castSource = source as BaseFileSource
     const frontmatter = await castSource.extractMarkdownMetadata(fullPath)
+    const relPath = castSource.ensureRelPath(fullPath) 
     return Promise.resolve(
-      new MdxDocNode(castSource, fullPath, index, frontmatter, parent)
+      new MdxDocNode(castSource, relPath, index, frontmatter, parent)
     )
   }
   static async buildProvider(config: SourceConfig): Promise<DocProvider> {

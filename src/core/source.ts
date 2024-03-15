@@ -177,6 +177,7 @@ export abstract class AbstractBaseSource implements IDocSource {
   }
   async buildTree(): Promise<IDocTree> {
     const files = await this.listFiles()
+    console.log('all the files', files)
     // the raw tree is just the directory structure of all matched files for easy traversal
     const rawTree = this.buildRawTree(files)
     // the immediate children
@@ -252,7 +253,7 @@ export abstract class AbstractBaseSource implements IDocSource {
           },
           'adding file'
         )
-        const fullPath = this.fullFilePath(relPath)
+        const fullPath = this.ensureFullFilePath(relPath)
         const ft = this.getFileType(fullPath)
         if (ft === 'markdown') {
           children.push(
@@ -269,7 +270,7 @@ export abstract class AbstractBaseSource implements IDocSource {
 
   // a small utility method to ensure we normalize the path
   ensureRelPath(globFile: string): string {
-    const fp = this.fullFilePath(globFile)
+    const fp = this.ensureFullFilePath(globFile)
     return path.relative(this.sourceRoot, fp)
   }
 
@@ -312,11 +313,16 @@ export abstract class AbstractBaseSource implements IDocSource {
    * @param relPath
    * @returns
    */
-  fullFilePath(relPath: string): string {
-    const fullPath = path.join(this.sourceRoot, relPath)
+  ensureFullFilePath(relPath: string): string {
+    // assume the path is aboslute
+    let fullPath = relPath
+    if (!path.isAbsolute(relPath)) {
+      fullPath = path.join(this.sourceRoot, relPath)
+    }
     if (!fullPath.startsWith(this.sourceRoot)) {
       throw new Error('Invalid path, not contained within source root')
     }
+
     return fullPath
   }
 

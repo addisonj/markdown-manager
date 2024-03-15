@@ -127,7 +127,7 @@ export class FileMediaNode implements IMediaNode {
   }
 
   physicalPath(): string {
-    return this.source.fullFilePath(this.relPath)
+    return this.source.ensureFullFilePath(this.relPath)
   }
 }
 
@@ -192,7 +192,7 @@ export abstract class AbstractFileDocNode
   }
 
   physicalPath(): string {
-    return this.source.fullFilePath(this.relPath)
+    return this.source.ensureFullFilePath(this.relPath)
   }
 
   navigable(): boolean {

@@ -25,15 +25,16 @@ export class BaseFileSource extends AbstractBaseSource {
    * @returns
    */
   async readFileRaw(relPath: string): Promise<ArrayBuffer> {
-    const buff = await fs.readFile(this.fullFilePath(relPath))
+    const buff = await fs.readFile(this.ensureFullFilePath(relPath))
     return buff.buffer
   }
 
   async readFileStream(relPath: string): Promise<Readable> {
-    return createReadStream(this.fullFilePath(relPath))
+    return createReadStream(this.ensureFullFilePath(relPath))
   }
 
   async listFiles(): Promise<string[]> {
+    console.log('listFiles', {fp: this.options.filePatterns, root: this.sourceRoot})
     return await fg(this.options.filePatterns, { cwd: this.sourceRoot })
   }
 

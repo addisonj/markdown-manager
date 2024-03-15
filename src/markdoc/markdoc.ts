@@ -25,6 +25,7 @@ import {
   isMarkdocOptions,
 } from '../core'
 import { extractLinks } from './helpers'
+import path from 'path'
 
 // TODO figure this out...
 export class MarkdocLink implements OutLink {
@@ -133,18 +134,19 @@ export class MarkdocFileProvider implements DocProvider {
       throw new Error('MarkdocFileProvider only supports file sources')
     }
     // cache the source
-    if (!source) {
+    if (!this.source) {
       this.source = source
     }
     const castSource = source as BaseFileSource
     const frontmatter = await castSource.extractMarkdownMetadata(fullPath)
+    const relPath = castSource.ensureRelPath(fullPath)
     const isPartial =
       this.isPartialPath(fullPath) || frontmatter.partial || false
     return Promise.resolve(
       new MarkdocDocNode(
         this,
         castSource,
-        fullPath,
+        relPath,
         index,
         frontmatter,
         parent,
@@ -171,6 +173,7 @@ export class MarkdocFileProvider implements DocProvider {
       return this.partialCache
     }
     const castSource = this.source as BaseFileSource
+    console.log('checking the source', this.source)
     if (!castSource.currentTree) {
       this.logger.warn('No current tree, cannot gather partials')
       return {}
