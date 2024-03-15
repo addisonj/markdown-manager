@@ -7,8 +7,9 @@
     "allowSyntheticDefaultImports": true,
     "declaration": true,
     "declarationMap": true,
-    "moduleResolution": "node"
+    "moduleResolution": "node",
+    "outDir": "dist"
   },
   "include": ["**/*.ts", "**/*.d.ts"],
-  "exclude": ["dist", "spec", "**/*.test.ts", "**/__*.ts"]
+  "exclude": ["dist", "spec", "**/*.test.ts", "**/__*.ts", "vitest.config.ts"]
 }

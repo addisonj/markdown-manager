@@ -7,11 +7,20 @@ import {
   TestFileProvider,
   setupLogging,
 } from './__testutils'
+import { SourceConfig } from './config'
 
 describe('Core Node functions', () => {
   setupLogging()
   const provider = new TestFileProvider()
-  const source = new TestBaseFileSource('nodetest', '/', provider)
+  const config: SourceConfig = {
+    source: 'files',
+    markdownFlavor: 'markdoc',
+    options: {
+      root: '/',
+      filePatterns: ['**/*.md'],
+    },
+  }
+  const source = new TestBaseFileSource('nodetest', config, provider)
 
   async function buildNode(
     name: string,
@@ -47,14 +56,13 @@ describe('Core Node functions', () => {
       expect(n.tags).toEqual([])
       expect(n.frontmatter).toEqual({})
       expect(n.indexDoc).toBe(false)
-      expect(n.isPartial).toBe(false)
       // check methods are working
       expect(await n.asMarkdown()).toBe('content')
       expect(await n.read()).toBe('content')
       expect(n.parents().map((p) => p.id.id)).toEqual(['t1'])
       expect(n.links()).toEqual([])
       expect(n.localLinks()).toEqual([])
-      expect(await n.render()).toEqual('<article><p>content</p></article>')
+      expect(await n.renderHtml()).toEqual('<article><p>content</p></article>')
     })
     it('should be able to build sibling nodes', async () => {
       const n1 = await buildNode('t1/test.md', 'content', [])
@@ -89,7 +97,7 @@ content
       expect(n.title).toBe('Test Document')
       expect(n.tags).toEqual(['tag1', 'tag2'])
       expect(n.hidden).toBe(true)
-      expect(n.render()).resolves.toBe('<article><p>content</p></article>')
+      expect(n.renderHtml()).resolves.toBe('<article><p>content</p></article>')
     })
   })
 

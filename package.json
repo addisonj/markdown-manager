@@ -5,6 +5,7 @@
   "description": "Manage collections of markdoc documents with support for file-based structure, snippets, and more",
   "main": "index.js",
   "scripts": {
+    "build": "tsc",
     "test": "vitest",
     "test:debug": "LOG_LEVEL=debug vitest"
   },
@@ -25,6 +26,7 @@
   },
   "dependencies": {
     "@markdoc/markdoc": "^0.4.0",
+    "@mdx-js/mdx": "^3.0.1",
     "@opentelemetry/api": "^1.8.0",
     "fast-glob": "^3.3.2",
     "slugify": "^1.6.6",

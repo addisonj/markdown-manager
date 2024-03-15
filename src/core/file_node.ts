@@ -1,16 +1,19 @@
-import { IPVersion } from 'net'
-import { AbstractFileSourceType } from './source'
+import type { ReactNode } from 'react'
+import { BaseFileSource } from './file_source'
 import {
   DocId,
   IDirNode,
   IDocNode,
   IMediaNode,
   IParsedDocNode,
+  IRenderableDocNode,
+  MediaType,
   NavNode,
   Node,
+  ReactOptions,
+  ReactShape,
   isDirNode,
   isDocNode,
-  MediaType,
 } from './types'
 
 export class FileDirNode implements IDirNode {
@@ -24,7 +27,7 @@ export class FileDirNode implements IDirNode {
   hidden: boolean
   children: Node[]
   constructor(
-    source: AbstractFileSourceType,
+    source: BaseFileSource,
     relPath: string,
     index: number,
     parent?: IDirNode | undefined
@@ -79,7 +82,7 @@ export class FileDirNode implements IDirNode {
 }
 
 export class FileMediaNode implements IMediaNode {
-  private source: AbstractFileSourceType
+  private source: BaseFileSource
   relPath: string
   type: 'media'
   id: DocId
@@ -89,7 +92,7 @@ export class FileMediaNode implements IMediaNode {
   mediaType: MediaType 
 
   constructor(
-    source: AbstractFileSourceType,
+    source: BaseFileSource,
     relPath: string,
     index: number,
     parent?: IDirNode | undefined
@@ -129,9 +132,10 @@ export class FileMediaNode implements IMediaNode {
 }
 
 export abstract class AbstractFileDocNode
-  implements IDocNode
+  implements IDocNode, IRenderableDocNode
+
 {
-  protected source: AbstractFileSourceType
+  protected source: BaseFileSource
   type: 'file'
   relPath: string
   id: DocId
@@ -144,9 +148,9 @@ export abstract class AbstractFileDocNode
   tags: string[]
   frontmatter: Record<string, any>
   indexDoc: boolean
-  isPartial: boolean
+  abstract providerName: string
   constructor(
-    source: AbstractFileSourceType,
+    source: BaseFileSource,
     relPath: string,
     index: number,
     frontmatter: Record<string, any>,
@@ -165,7 +169,6 @@ export abstract class AbstractFileDocNode
     this.parent = parent
     this.navTitle = info.title
     this.indexDoc = source.isIndexDoc(relPath)
-    this.isPartial = source.isPartialPath(relPath)
     this.frontmatter = frontmatter
     // TODO open question: should these be on the parsed doc? or do we need them here?
     this.hidden = frontmatter.hidden || false
@@ -201,4 +204,16 @@ export abstract class AbstractFileDocNode
 
   // left to be implemented by the subclass based on the markdown flavor
   abstract parse(): Promise<IParsedDocNode>
+
+  abstract renderTarget: 'html' | 'react' | 'other'
+  // stub implementations, with the expectation that the subclass will override the render method they need
+  async renderReact(react: ReactShape, opts: ReactOptions): Promise<ReactNode> {
+    throw new Error('Method not implemented.')
+  }
+  async renderHtml(): Promise<string> {
+    throw new Error('Method not implemented.')
+  }
+  async renderOther(...args: any[]): Promise<any> {
+    throw new Error('Method not implemented.')
+  }
 }

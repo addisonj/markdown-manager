@@ -1,12 +1,11 @@
-import { AbstractFileDocNode } from './node'
-import { BaseFileSource } from './source'
+import { AbstractFileDocNode } from './file_node'
+import { BaseFileSource } from './file_source'
 import {
   DocProvider,
   IDirNode,
   IDocSource,
   IParsedDocNode,
   OutLink,
-  RenderableDoc,
 } from './types'
 import { Readable } from 'node:stream'
 import Markdoc from '@markdoc/markdoc'
@@ -17,7 +16,7 @@ import { LoggingApi, getLogger } from './logging'
 // mostly this is just initing the logger
 export function setupLogging() {
   const LOG_LEVEL = process.env.LOG_LEVEL || 'info'
-  const prettyLogger = pino({level: LOG_LEVEL}, pretty({sync: true}))
+  const prettyLogger = pino({ level: LOG_LEVEL }, pretty({ sync: true }))
   const log = getLogger({
     logging: prettyLogger,
   })
@@ -42,6 +41,7 @@ export class TestDocMock {
 }
 
 export class TestDocNode extends AbstractFileDocNode implements IParsedDocNode {
+  providerName: string = 'test-file'
   private content: string
   private _links: OutLink[]
   renderTarget: 'html' | 'react' | 'other' = 'html'
@@ -57,7 +57,7 @@ export class TestDocNode extends AbstractFileDocNode implements IParsedDocNode {
     this._links = mock.links
     this.content = mock.content
   }
-  render(): Promise<RenderableDoc> {
+  renderHtml(): Promise<string> {
     const p = Markdoc.transform(Markdoc.parse(this.ast))
     // render the markdown to html using
     return Promise.resolve(Markdoc.renderers.html(p))
@@ -81,28 +81,28 @@ export class TestDocNode extends AbstractFileDocNode implements IParsedDocNode {
     this.content = content
   }
 }
-export class TestFileProvider implements DocProvider<TestDocNode> {
+export class TestFileProvider implements DocProvider {
   private docs: Record<string, TestDocMock> = {}
   private builtDocs: Record<string, TestDocNode> = {}
   private logger: LoggingApi
   constructor(docs: Record<string, TestDocMock> = {}) {
     this.docs = docs
     this.builtDocs = {}
-    this.logger = getLogger().child({module: 'test-file-provider'})
+    this.logger = getLogger().child({ module: 'test-file-provider' })
   }
   addDoc(doc: TestDocMock) {
     this.docs[doc.name] = doc
   }
   name: string = 'test-file'
   async buildDocNode(
-    source: IDocSource<TestDocNode, DocProvider<TestDocNode>>,
+    source: IDocSource,
     fullPath: string,
     index: number,
     parent?: IDirNode | undefined
   ): Promise<TestDocNode> {
     const castSource = source as TestBaseFileSource
     const relPath = castSource.ensureRelPath(fullPath)
-    
+
     if (this.docs[relPath]) {
       const d = this.docs[relPath]
       const frontmatter = await castSource.extractMarkdownMetadata(fullPath)
@@ -117,8 +117,16 @@ export class TestFileProvider implements DocProvider<TestDocNode> {
       this.builtDocs[relPath] = dn
       return Promise.resolve(dn)
     } else {
-      console.log('Document not found', relPath, Object.keys(this.docs), fullPath)
-      this.logger.warn({relPath, fullPath, docs: Object.keys(this.docs)}, 'Document not found', )
+      console.log(
+        'Document not found',
+        relPath,
+        Object.keys(this.docs),
+        fullPath
+      )
+      this.logger.warn(
+        { relPath, fullPath, docs: Object.keys(this.docs) },
+        'Document not found'
+      )
     }
     throw new Error('Document not found')
   }
@@ -143,7 +151,8 @@ export class TestFileProvider implements DocProvider<TestDocNode> {
     this.docs = {}
   }
 }
-export class TestBaseFileSource extends BaseFileSource<TestDocNode, TestFileProvider> {
+export class TestBaseFileSource extends BaseFileSource {
+  provider: TestFileProvider
   async listFiles(): Promise<string[]> {
     return Promise.resolve(this.provider.getFiles())
   }

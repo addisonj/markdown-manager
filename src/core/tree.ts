@@ -1,10 +1,9 @@
-import { IDocTree, IMediaNode, NavNode, Node, isDirNode, isDocNode, isMediaNode } from './types'
+import { BaseFileSource } from './file_source'
+import { IDocSource, IDocTree, IMediaNode, NavNode, Node, isDirNode, isDocNode, isMediaNode } from './types'
 
 
-export class BaseDocTree implements IDocTree {
-  children: Node[]
-  constructor(children: Node[]) {
-    this.children = children
+export abstract class AbstractBaseTree implements IDocTree {
+  constructor(public source: IDocSource, public children: Node[]) {
   }
   navChildren(): NavNode[] {
     return this.children.flatMap((n) => {
@@ -30,5 +29,11 @@ export class BaseDocTree implements IDocTree {
       }
     }
     return mediaNodes
+  }
+}
+
+export class BaseDocTree extends AbstractBaseTree {
+  constructor(public source: BaseFileSource, public children: Node[]) {
+    super(source, children)
   }
 }

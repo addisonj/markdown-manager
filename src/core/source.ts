@@ -3,7 +3,6 @@ import {
   Node,
   DocProvider,
   IDirNode,
-  IDocNode,
   IDocSource,
   IDocTree,
   DocFileType,
@@ -11,15 +10,15 @@ import {
   MediaType,
 } from './types'
 import path from 'path'
-import { promises as fs, createReadStream } from 'fs'
 import slugify from 'slugify'
 import { parse } from 'yaml'
 import split from 'split2'
 
-import fg from 'fast-glob'
-import { FileDirNode, FileMediaNode } from './node'
 import { Readable } from 'stream'
 import { LoggingApi, getLogger } from './logging'
+import { BaseFileSource } from './file_source'
+import { SourceConfig } from './config'
+import { SourceOptions } from './config'
 /**
  * A list of file patterns for the most common markdown and media files
  */
@@ -72,23 +71,13 @@ export const DefaultMappingTypes: Record<string, DocFileType> = {
   '.pdf': 'document',
 }
 
-export type FileSourceOptions = {
-  filePatterns?: string[]
-  titleIndexVersionRegex?: RegExp
-  extensionMapping?: Record<string, DocFileType>
-  partialHints?: string[]
-  indexDocName?: string
-  parseFrontMatter?: (content: string) => Record<string, any>
-  frontMatterMarker?: string
-}
-export type AllFileSourceOptions = Required<FileSourceOptions>
+export type AllSourceOptions = Required<SourceOptions>
 
-export const DefaultFileSourceOptions: AllFileSourceOptions = {
+export const DefaultSourceOptions: AllSourceOptions = {
   filePatterns: DefaultFilePatterns,
   titleIndexVersionRegex:
     /^(?<idx>\d+)?\s*-?\s*(?<version>v\d+(\.\d+)?(\.\d+)?)?\s*-?\s*(?<name>.*)/,
   extensionMapping: DefaultMappingTypes,
-  partialHints: ['.partial.', '/partials/'],
   indexDocName: 'index',
   parseFrontMatter: (content: string) => {
     // TODO implement front matter parsing
@@ -116,15 +105,10 @@ type RawTree = {
   files: string[]
 }
 
-export type AbstractFileSourceType = BaseFileSource<any, any>
 /**
  * A base source for documents from a local disk
  */
-export class BaseFileSource<
-  DN extends IDocNode,
-  P extends DocProvider<DN>,
-> implements IDocSource<DN, P>
-{
+export abstract class AbstractBaseSource implements IDocSource {
   /**
    *
    * @param sourceRoot must be a *full* file path to the root of the source
@@ -133,23 +117,27 @@ export class BaseFileSource<
    */
   constructor(
     public sourceName: string,
+    public config: SourceConfig,
     sourceRoot: string,
-    provider: P,
-    options: FileSourceOptions = DefaultFileSourceOptions
+    provider: DocProvider,
   ) {
     this.sourceRoot = sourceRoot
     this.provider = provider
     this.options = {
-      ...DefaultFileSourceOptions,
-      ...options,
+      ...DefaultSourceOptions,
+      ...this.config.options,
     }
-    this.logger = getLogger().child({ source: this.sourceName, root: this.sourceRoot })
+    this.logger = getLogger().child({
+      source: this.sourceName,
+      root: this.sourceRoot,
+    })
   }
   sourceRoot: string
-  sourceType: string = 'file'
-  provider: P
-  options: AllFileSourceOptions
+  abstract sourceType: string
+  provider: DocProvider
+  options: AllSourceOptions
   private logger: LoggingApi
+  public currentTree?: IDocTree
 
   private buildRawTree(rawFiles: string[]): RawTree {
     const root = {
@@ -203,7 +191,10 @@ export class BaseFileSource<
       if (!current) {
         continue
       }
-      this.logger.debug({ path: current.path, files: current.files}, 'processing file in queue')
+      this.logger.debug(
+        { path: current.path, files: current.files },
+        'processing file in queue'
+      )
       // add the next dir for processing
       for (const dir of current.dirs) {
         this.logger.debug({ dir: dir.path }, 'adding dir to queue')
@@ -213,14 +204,24 @@ export class BaseFileSource<
       let curParent: IDirNode | undefined
       this.logger.debug({ path: current.path }, 'current.path')
       if (parents[current.fullPath]) {
-        this.logger.debug({ path: current.fullPath, parent: parents[current.fullPath] }, 'using existing parent' )
+        this.logger.debug(
+          { path: current.fullPath, parent: parents[current.fullPath] },
+          'using existing parent'
+        )
         parents[current.fullPath].count++
         curParent = parents[current.fullPath].parent
       } else {
-        this.logger.debug({ path: current.fullPath, parent: parents[current.fullPath] }, 'creating new parent')
+        this.logger.debug(
+          { path: current.fullPath, parent: parents[current.fullPath] },
+          'creating new parent'
+        )
         const dirParentPath = path.dirname(current.fullPath)
         // this is a bit ugly... because of the different ways in which root is represented all of these may be options for the 'root' directory
-        if (dirParentPath === '/' || dirParentPath === '' || dirParentPath === '.') {
+        if (
+          dirParentPath === '/' ||
+          dirParentPath === '' ||
+          dirParentPath === '.'
+        ) {
           this.logger.debug('creating root parent')
           curParent = await this.buildDirNode(current.fullPath, 0, undefined)
           parents[current.fullPath] = { parent: curParent, count: 1 }
@@ -243,7 +244,14 @@ export class BaseFileSource<
         const relPath = this.ensureRelPath(
           path.join(curParent?.relPath || '', file)
         )
-        this.logger.debug({ file, parent: {id: curParent?.id.id, p: curParent?.relPath}, relPath }, 'adding file')
+        this.logger.debug(
+          {
+            file,
+            parent: { id: curParent?.id.id, p: curParent?.relPath },
+            relPath,
+          },
+          'adding file'
+        )
         const fullPath = this.fullFilePath(relPath)
         const ft = this.getFileType(fullPath)
         if (ft === 'markdown') {
@@ -255,7 +263,8 @@ export class BaseFileSource<
         }
       }
     }
-    return new BaseDocTree(children)
+    this.currentTree = new BaseDocTree(this, children)
+    return this.currentTree
   }
 
   // a small utility method to ensure we normalize the path
@@ -268,21 +277,19 @@ export class BaseFileSource<
     const parsed = path.parse(fullPath)
     return this.options.extensionMapping[parsed.ext] || 'unknown'
   }
-  async listFiles(): Promise<string[]> {
-    return await fg(this.options.filePatterns, { cwd: this.sourceRoot })
-  }
+
+  abstract listFiles(): Promise<string[]>
+
   /**
    * Creates a dir node, can be overridden to create custom dir nodes
    * @param fullPath the path to the directory
    * @param parent the parent directory to which this belongs, if null, it is at the root
    */
-  async buildDirNode(
+  abstract buildDirNode(
     fullPath: string,
     index: number,
     parent?: IDirNode | undefined
-  ): Promise<IDirNode> {
-    return Promise.resolve(new FileDirNode(this, fullPath, index, parent))
-  }
+  ): Promise<IDirNode>
 
   /**
    * Creates a media node
@@ -290,13 +297,11 @@ export class BaseFileSource<
    * @param index the index of the file in the directory
    * @param parent the parent direct to which this belongs, if empty, then the file is a root
    */
-  async buildMediaNode(
+  abstract buildMediaNode(
     fullPath: string,
     index: number,
     parent?: IDirNode
-  ): Promise<IMediaNode> {
-    return Promise.resolve(new FileMediaNode(this, fullPath, index, parent))
-  }
+  ): Promise<IMediaNode>
 
   buildId(name: string): string {
     return slugify(name)
@@ -315,33 +320,19 @@ export class BaseFileSource<
     return fullPath
   }
 
-  /**
-   * Abstract reading to this class so that all IO can be centralized here
-   * @param relPath the full path to the file
-   * @param opts
-   * @returns
-   */
-  async readFileRaw(relPath: string): Promise<ArrayBuffer> {
-    const buff = await fs.readFile(this.fullFilePath(relPath))
-    return buff.buffer
-  }
-
-  async readFileStream(relPath: string): Promise<Readable> {
-    return createReadStream(this.fullFilePath(relPath))
-  }
-
   getMediaType(filePath: string): MediaType {
     const ext = path.extname(filePath)
     return this.options.extensionMapping[ext] || 'unknown'
   }
 
-  isPartialPath(relPath: string): boolean {
-    return this.options.partialHints.some((hint) => relPath.includes(hint))
-  }
 
   isIndexDoc(relPath: string): boolean {
     return path.parse(relPath).name === this.options.indexDocName
   }
+
+  abstract readFileRaw(relPath: string): Promise<ArrayBuffer>
+
+  abstract readFileStream(relPath: string): Promise<Readable>
 
   async extractMarkdownMetadata(relPath: string): Promise<Record<string, any>> {
     return new Promise(async (resolve, reject) => {
@@ -417,3 +408,5 @@ export class BaseFileSource<
     }
   }
 }
+
+

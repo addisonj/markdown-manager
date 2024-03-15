@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, createElement, Fragment } from 'react'
 import { ValidationError } from './validator'
+import { SourceConfig } from './config'
 /**
  * Represents an id, which have may multiple version
  */
@@ -12,6 +13,7 @@ export type DocId = {
  * Represents the root of the tree, with some convenience methods for interacting with the tree
  */
 export type IDocTree = {
+  source: IDocSource
   children: Node[]
   navChildren(): NavNode[]
   getMediaNodes: () => Promise<IMediaNode[]>
@@ -97,6 +99,12 @@ export type IDocNode = NavNode & {
   readonly type: 'file'
 
   /**
+   * A name of the provider of the document, allows for callers to know 
+   * what type of docNode and how to handle it
+   */
+  readonly providerName: string
+
+  /**
    * The title from the frontmatter
    */
   readonly title: string
@@ -115,12 +123,6 @@ export type IDocNode = NavNode & {
    * Indicates if document is an "index", i.e. the default document for a directory
    */
   readonly indexDoc: boolean
-
-  /**
-   * Indicates that this document is a "partial" document, not intended to produce a whole
-   * page but instead a section of content
-   */
-  readonly isPartial: boolean
 
   /**
    * The raw content of the document, with frontmatter removed
@@ -146,7 +148,14 @@ export type IDocNode = NavNode & {
   parents: () => IDirNode[]
 }
 
-export type RenderableDoc = string | ((props: any) => ReactNode) | ((props: any) => string)
+export type ReactShape = Readonly<{
+  createElement: typeof createElement
+  Fragment: typeof Fragment
+}>
+export type ComponentRepo = Record<string, React.ComponentType<any>> 
+export type ReactOptions = {
+  components?: ComponentRepo 
+} & Record<string, any>
 export type IParsedDocNode = Omit<IDocNode, 'parse'> & {
   /**
    * the parsed AST of the document
@@ -161,18 +170,38 @@ export type IParsedDocNode = Omit<IDocNode, 'parse'> & {
 
   localLinks: () => OutLink[]
 
+  /**
+   * The target for rendering the document, depending on the return type of this, call the matching render function!
+   */
   renderTarget: 'html' | 'react' | 'other'
 
   /**
-   * Returns either the document or a JSX/react element for rendering the document
+   * 
+   * @param react a react implementation
+   * @param opts opts, primarily, a component repo for any components that may be needed
+   * @returns A react node which can render the document
    */
-  render(): Promise<RenderableDoc>
+  renderReact: (react: ReactShape, opts: ReactOptions ) => Promise<ReactNode>
+
+  /**
+   * Render to a string
+   */
+  renderHtml(): Promise<string>
+
+  /**
+   * Implementation specific rendering function, the caller needs to know what 
+   * the required arguments and return types
+   * @param args any arguments needed to render the document
+   */
+  renderOther(...args: any[]): Promise<any>
 
   /**
    * Returns the document as a string of *vanilla* markdown, with any special syntax removed
    */
   asMarkdown(): Promise<string>
 }
+
+export type IRenderableDocNode = Pick<IParsedDocNode, 'renderTarget' | 'renderReact' | 'renderHtml' | 'renderOther'>
 
 export type DocFileType =
   | 'markdown'
@@ -228,7 +257,7 @@ export type DocFragment = {
   readonly title: string
 }
 
-export type DocProvider<DN extends IDocNode> = {
+export type DocProvider = {
   readonly name: string
 
   /**
@@ -240,16 +269,17 @@ export type DocProvider<DN extends IDocNode> = {
    * @returns
    */
   buildDocNode: (
-    source: IDocSource<DN, DocProvider<DN>>,
+    source: IDocSource,
     fullPath: string,
     index: number,
     parent?: IDirNode
-  ) => Promise<DN>
+  ) => Promise<IDocNode>
 }
 
-export type IDocSource<DN extends IDocNode, P extends DocProvider<DN>> = {
+export type IDocSource = {
+  readonly config: SourceConfig
   readonly sourceRoot: string
-  readonly provider: P
+  readonly provider: DocProvider
   readonly sourceType: string
   buildTree: () => Promise<IDocTree>
 }
@@ -287,17 +317,18 @@ export type DocLocation = {
 }
 
 export type IDocRepo = {
-  docs(): Promise<IParsedDocNode[]>
+  repoName: string
+  docs(): Promise<IDocNode[]>
   /**
    * returns one or more docs. If the doc has multiple versions, all will be returned unless a version is specified
    * @param id the id doc
    * @param version an optional version
    */
-  doc(id: string, version?: string): Promise<IParsedDocNode[]>
+  doc(id: string, version?: string): Promise<IDocNode[]>
   media(): Promise<IMediaNode[]>
-  mediaItem(id: string): Promise<IMediaNode>
+  mediaItem(id: string, version?: string): Promise<IMediaNode[]>
 
   validate(): Promise<ValidationError[]>
 
-  walkBfs(): Generator<Node, void, unknown> 
+  walkBfs(): Generator<Node, void, unknown>
 }
