@@ -1,4 +1,3 @@
-import { SourceConfig } from './config'
 import { IExtractor } from './extractor'
 import { MultiSource } from './multi_source'
 import {
@@ -21,9 +20,8 @@ export class DocRepo implements IDocRepo {
   constructor(
     public repoName: string,
     private docTrees: IDocTree[],
-    private validators: IValidator[],
-    // TODO add methods to extractors
-    private extractors: IExtractor[]
+    private _validators: IValidator[],
+    private _extractors: IExtractor[]
   ) {
     this.source = new MultiSource(this.docTrees)
     this.mergedTree = this.source.buildTreeSync()
@@ -35,17 +33,23 @@ export class DocRepo implements IDocRepo {
     this.mediaCache = {}
     for (const node of this.walkBfs()) {
       if (isDocNode(node)) {
-        if (!this.docCache[node.id.id]) {
-          this.docCache[node.id.id] = { versions: {} }
+        if (!this.docCache[node.pathId.path]) {
+          this.docCache[node.pathId.path] = { versions: {} }
         }
-        this.docCache[node.id.id].versions[node.id.version] = node
+        this.docCache[node.pathId.path].versions[node.pathId.version] = node
       } else if (isMediaNode(node)) {
-        if (!this.mediaCache[node.id.id]) {
-          this.mediaCache[node.id.id] = { versions: {} }
+        if (!this.mediaCache[node.pathId.path]) {
+          this.mediaCache[node.pathId.path] = { versions: {} }
         }
-        this.mediaCache[node.id.id].versions[node.id.version] = node
+        this.mediaCache[node.pathId.path].versions[node.pathId.version] = node
       }
     }
+  }
+  get extractors(): IExtractor[] {
+    return [...this._extractors, ...this.source.defaultExtractors()]
+  }
+  get validators(): IValidator[] {
+    return [...this._validators, ...this.source.defaultValidators()]
   }
   docs(): Promise<IDocNode[]> {
     const allDocs = []
@@ -94,10 +98,22 @@ export class DocRepo implements IDocRepo {
     return Promise.resolve([])
   }
   validate(): Promise<ValidationError[]> {
-    return Promise.all(this.validators.map((v) => v.validate(this))).then((v) =>
+    return this.validateSet(this.validators)
+  }
+  extract(): Promise<Record<string, any>> {
+    return this.extractSet(this.extractors)
+  }
+  extractSet(extractors: IExtractor[]): Promise<Record<string, any>> {
+    return Promise.all(extractors.map((v) => v.extract(this))).then((v) =>
+      v.reduce((acc, cur) => ({ ...acc, ...cur }), {})
+    )
+  }
+  validateSet(validators: IValidator[]): Promise<ValidationError[]> {
+    return Promise.all(validators.map((v) => v.validate(this))).then((v) =>
       v.flat()
     )
   }
+
   *walkBfs(): Generator<Node, void, unknown> {
     yield* this.mergedTree.walkBfs()
   }

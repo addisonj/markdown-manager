@@ -1,11 +1,10 @@
-import { Manager, IDocRepo } from 'markdown-library'
+import { Manager, IDocRepo } from 'markdown-manager'
 import path from 'path'
 
 const rootDir = path.resolve(process.cwd(), 'src', 'docs')
 const manager = new Manager({
   repos: {
     demo: {
-      webUrlPattern: '/docs/:docId',
       sources: {
         markdoc: {
           source: 'files',

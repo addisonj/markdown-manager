@@ -1,8 +1,8 @@
 {
-  "name": "markdoc-library",
+  "name": "markdown-manager",
   "type": "module",
   "version": "0.1.0",
-  "description": "Manage collections of markdoc documents with support for file-based structure, snippets, and more",
+  "description": "Manage collections of markdown documents with support for file-based structure, snippets, and more",
   "main": "index.ts",
   "scripts": {
     "build": "tsc",

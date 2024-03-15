@@ -34,7 +34,6 @@ export class BaseFileSource extends AbstractBaseSource {
   }
 
   async listFiles(): Promise<string[]> {
-    console.log('listFiles', {fp: this.options.filePatterns, root: this.sourceRoot})
     return await fg(this.options.filePatterns, { cwd: this.sourceRoot })
   }
 

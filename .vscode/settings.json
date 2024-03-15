@@ -1,5 +1,8 @@
 {
   "editor.tabSize": 2,
   "editor.detectIndentation": true,
-  "vitest.enable": true
+  "vitest.enable": true,
+  "cSpell.words": [
+    "markdoc"
+  ]
 }

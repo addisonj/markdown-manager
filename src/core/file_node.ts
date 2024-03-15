@@ -1,11 +1,11 @@
 import type { ReactNode } from 'react'
 import { BaseFileSource } from './file_source'
 import {
-  DocId,
+  PathDocId,
   IDirNode,
   IDocNode,
   IMediaNode,
-  IParsedDocNode,
+  ILoadedDocNode,
   IRenderableDocNode,
   MediaType,
   NavNode,
@@ -19,13 +19,14 @@ import {
 export class FileDirNode implements IDirNode {
   relPath: string
   type: 'directory'
-  id: DocId
+  pathId: PathDocId
   index: number
   depth: number
   parent?: IDirNode | undefined
   navTitle: string
   hidden: boolean
   children: Node[]
+  metadata: Record<string, any> = {}
   constructor(
     source: BaseFileSource,
     relPath: string,
@@ -35,8 +36,8 @@ export class FileDirNode implements IDirNode {
     this.relPath = relPath
     const info = source.extractTitleVersionIndex(relPath, index, parent)
     this.type = 'directory'
-    this.id = {
-      id: source.buildId(info.title),
+    this.pathId = {
+      path: relPath,
       version: info.version,
     }
     this.index = info.index
@@ -85,11 +86,12 @@ export class FileMediaNode implements IMediaNode {
   private source: BaseFileSource
   relPath: string
   type: 'media'
-  id: DocId
+  pathId: PathDocId
   index: number
   depth: number
   parent?: IDirNode | undefined
-  mediaType: MediaType 
+  mediaType: MediaType
+  metadata: Record<string, any> = {}
 
   constructor(
     source: BaseFileSource,
@@ -101,8 +103,8 @@ export class FileMediaNode implements IMediaNode {
     this.relPath = relPath
     const info = source.extractTitleVersionIndex(relPath, index, parent)
     this.type = 'media'
-    this.id = {
-      id: source.buildId(info.title),
+    this.pathId = {
+      path: relPath,
       version: info.version,
     }
     this.index = info.index
@@ -133,12 +135,11 @@ export class FileMediaNode implements IMediaNode {
 
 export abstract class AbstractFileDocNode
   implements IDocNode, IRenderableDocNode
-
 {
   protected source: BaseFileSource
   type: 'file'
   relPath: string
-  id: DocId
+  pathId: PathDocId
   index: number
   depth: number
   parent?: IDirNode | undefined
@@ -149,6 +150,7 @@ export abstract class AbstractFileDocNode
   frontmatter: Record<string, any>
   indexDoc: boolean
   abstract providerName: string
+  metadata: Record<string, any> = {}
   constructor(
     source: BaseFileSource,
     relPath: string,
@@ -160,8 +162,8 @@ export abstract class AbstractFileDocNode
     this.relPath = relPath
     const info = source.extractTitleVersionIndex(relPath, index, parent)
     this.type = 'file'
-    this.id = {
-      id: source.buildId(this.relPath),
+    this.pathId = {
+      path: this.relPath,
       version: info.version,
     }
     this.index = info.index
@@ -203,7 +205,7 @@ export abstract class AbstractFileDocNode
   }
 
   // left to be implemented by the subclass based on the markdown flavor
-  abstract parse(): Promise<IParsedDocNode>
+  abstract load(): Promise<ILoadedDocNode>
 
   abstract renderTarget: 'html' | 'react' | 'other'
   // stub implementations, with the expectation that the subclass will override the render method they need

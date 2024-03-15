@@ -4,7 +4,7 @@ import {
   DocProvider,
   IDirNode,
   IDocSource,
-  IParsedDocNode,
+  ILoadedDocNode,
   OutLink,
 } from './types'
 import { Readable } from 'node:stream'
@@ -12,6 +12,9 @@ import Markdoc from '@markdoc/markdoc'
 import pino from 'pino'
 import pretty from 'pino-pretty'
 import { LoggingApi, getLogger } from './logging'
+import { IEnrichment } from './enrichment'
+import { IExtractor } from './extractor'
+import { IValidator } from './validator'
 
 // mostly this is just initing the logger
 export function setupLogging() {
@@ -40,7 +43,7 @@ export class TestDocMock {
   }
 }
 
-export class TestDocNode extends AbstractFileDocNode implements IParsedDocNode {
+export class TestDocNode extends AbstractFileDocNode implements ILoadedDocNode {
   providerName: string = 'test-file'
   private content: string
   private _links: OutLink[]
@@ -74,8 +77,8 @@ export class TestDocNode extends AbstractFileDocNode implements IParsedDocNode {
   localLinks(): OutLink[] {
     return this._links.filter((l) => l.type !== 'external')
   }
-  parse(): Promise<IParsedDocNode> {
-    return Promise.resolve(this)
+  load(): Promise<ILoadedDocNode> {
+    return this.source.enrichLoadDocNode(this)
   }
   setContent(content: string) {
     this.content = content
@@ -85,10 +88,24 @@ export class TestFileProvider implements DocProvider {
   private docs: Record<string, TestDocMock> = {}
   private builtDocs: Record<string, TestDocNode> = {}
   private logger: LoggingApi
-  constructor(docs: Record<string, TestDocMock> = {}) {
+  constructor(
+    docs: Record<string, TestDocMock> = {},
+    public enrichments: IEnrichment[] = [],
+    public extractors: IExtractor[] = [],
+    public validators: IValidator[] = []
+  ) {
     this.docs = docs
     this.builtDocs = {}
     this.logger = getLogger().child({ module: 'test-file-provider' })
+  }
+  defaultExtractors(): IExtractor[] {
+    return this.extractors
+  }
+  defaultValidators(): IValidator[] {
+    return this.validators
+  }
+  defaultEnrichments(): IEnrichment[] {
+    return this.enrichments
   }
   addDoc(doc: TestDocMock) {
     this.docs[doc.name] = doc

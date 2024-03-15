@@ -1,11 +1,11 @@
 import React from 'react'
 import { getDemoRepo } from '@/lib/library'
-import { ReactShape } from 'markdown-library'
+import { ReactShape } from 'markdown-manager'
 export async function generateStaticParams() {
   const repo = await getDemoRepo()
   const docs = await repo.docs()
   const paths = docs.map((doc) => ({
-    docId: [doc.id.id],
+    docId: [doc.pathId.path],
   }))
   console.log('paths', paths)
   return paths
@@ -22,7 +22,7 @@ export default async function Page({ params }: { params: { docId: string } }) {
   }
   const lastDoc = doc[doc.length - 1]
 
-  const readDoc = await lastDoc.parse()
+  const readDoc = await lastDoc.load()
 
   const component = await readDoc.renderReact(React as ReactShape, {})
 

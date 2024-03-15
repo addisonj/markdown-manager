@@ -1,24 +1,27 @@
-import { BaseDocTree } from './tree'
-import {
-  Node,
-  DocProvider,
-  IDirNode,
-  IDocSource,
-  IDocTree,
-  DocFileType,
-  IMediaNode,
-  MediaType,
-} from './types'
 import path from 'path'
 import slugify from 'slugify'
-import { parse } from 'yaml'
 import split from 'split2'
+import { parse } from 'yaml'
+import { BaseDocTree } from './tree'
+import {
+  DocFileType,
+  DocProvider,
+  IDirNode,
+  IDocNode,
+  IDocSource,
+  IDocTree,
+  ILoadedDocNode,
+  IMediaNode,
+  MediaType,
+  Node,
+} from './types'
 
 import { Readable } from 'stream'
+import { EnrichmentConfig, SourceConfig, SourceOptions } from './config'
+import { IEnrichment } from './enrichment'
+import { IExtractor } from './extractor'
 import { LoggingApi, getLogger } from './logging'
-import { BaseFileSource } from './file_source'
-import { SourceConfig } from './config'
-import { SourceOptions } from './config'
+import { IValidator } from './validator'
 /**
  * A list of file patterns for the most common markdown and media files
  */
@@ -109,6 +112,8 @@ type RawTree = {
  * A base source for documents from a local disk
  */
 export abstract class AbstractBaseSource implements IDocSource {
+  // the extractors passed in the configuration
+  private _enrichments: IEnrichment[] = []
   /**
    *
    * @param sourceRoot must be a *full* file path to the root of the source
@@ -119,7 +124,7 @@ export abstract class AbstractBaseSource implements IDocSource {
     public sourceName: string,
     public config: SourceConfig,
     sourceRoot: string,
-    provider: DocProvider,
+    provider: DocProvider
   ) {
     this.sourceRoot = sourceRoot
     this.provider = provider
@@ -131,7 +136,37 @@ export abstract class AbstractBaseSource implements IDocSource {
       source: this.sourceName,
       root: this.sourceRoot,
     })
+    const enrichConfigs = this.config.enrichments || []
+    this._enrichments = enrichConfigs.map((e) => this.resolveEnrichment(e))
   }
+  get enrichments(): IEnrichment[] {
+    return [...this._enrichments, ...this.defaultEnrichments()]
+  }
+  private onDiscoveryEnrichments(): IEnrichment[] {
+    return this.enrichments.filter((e) => e.lifecycle === 'onDiscovery')
+  }
+  private onLoadEnrichments(): IEnrichment[] {
+    return this.enrichments.filter((e) => e.lifecycle === 'onLoad')
+  }
+  defaultExtractors(): IExtractor[] {
+    if (this.config.enableDefaultExtractors) {
+      return this.provider.defaultExtractors()
+    }
+    return []
+  }
+  defaultValidators(): IValidator[] {
+    if (this.config.enableDefaultValidators) {
+      return this.provider.defaultValidators()
+    }
+    return []
+  }
+  defaultEnrichments(): IEnrichment[] {
+    if (this.config.enableDefaultEnrichments) {
+      return this.provider.defaultEnrichments()
+    }
+    return []
+  }
+
   sourceRoot: string
   abstract sourceType: string
   provider: DocProvider
@@ -177,7 +212,6 @@ export abstract class AbstractBaseSource implements IDocSource {
   }
   async buildTree(): Promise<IDocTree> {
     const files = await this.listFiles()
-    console.log('all the files', files)
     // the raw tree is just the directory structure of all matched files for easy traversal
     const rawTree = this.buildRawTree(files)
     // the immediate children
@@ -224,7 +258,9 @@ export abstract class AbstractBaseSource implements IDocSource {
           dirParentPath === '.'
         ) {
           this.logger.debug('creating root parent')
-          curParent = await this.buildDirNode(current.fullPath, 0, undefined)
+          const newNode = await this.buildDirNode(current.fullPath, 0, undefined)
+          const enriched = await this.enrichDirNode(newNode)
+          curParent = enriched
           parents[current.fullPath] = { parent: curParent, count: 1 }
         } else {
           this.logger.debug({ path: dirParentPath }, 'creating child parent')
@@ -233,13 +269,15 @@ export abstract class AbstractBaseSource implements IDocSource {
             throw new Error('failed to find dirParent')
           }
           const allPath = path.join(dirParent.relPath, current.path)
-          curParent = await this.buildDirNode(allPath, 0, dirParent)
+          const newNode = await this.buildDirNode(allPath, 0, dirParent)
+          const enriched = await this.enrichDirNode(newNode)
+          curParent = enriched
         }
         parents[current.fullPath] = { parent: curParent, count: 1 }
         children.push(curParent)
       }
 
-      // we process the files, using hte curParent as the parent for each child
+      // we process the files, using the curParent as the parent for each child
       for (let i = 0; i < current.files.length; i++) {
         const file = current.files[i]
         const relPath = this.ensureRelPath(
@@ -248,7 +286,7 @@ export abstract class AbstractBaseSource implements IDocSource {
         this.logger.debug(
           {
             file,
-            parent: { id: curParent?.id.id, p: curParent?.relPath },
+            parent: { id: curParent?.pathId.path, p: curParent?.relPath },
             relPath,
           },
           'adding file'
@@ -256,11 +294,13 @@ export abstract class AbstractBaseSource implements IDocSource {
         const fullPath = this.ensureFullFilePath(relPath)
         const ft = this.getFileType(fullPath)
         if (ft === 'markdown') {
-          children.push(
-            await this.provider.buildDocNode(this, fullPath, i, curParent)
-          )
+          const newNode = await this.provider.buildDocNode(this, fullPath, i, curParent)
+          const enriched = await this.enrichDiscoveryDocNode(newNode)
+          children.push(enriched)
         } else if (ft === 'image' || ft === 'video' || ft === 'document') {
-          children.push(await this.buildMediaNode(fullPath, i, curParent))
+          const newNode = await this.buildMediaNode(fullPath, i, curParent) 
+          const enriched = await this.enrichMediaNode(newNode)
+          children.push(enriched)
         }
       }
     }
@@ -277,6 +317,74 @@ export abstract class AbstractBaseSource implements IDocSource {
   getFileType(fullPath: string): DocFileType {
     const parsed = path.parse(fullPath)
     return this.options.extensionMapping[parsed.ext] || 'unknown'
+  }
+
+  private async enrichDirNode(node: IDirNode): Promise<IDirNode> {
+    let updated = node
+    for (const enrichment of this.onLoadEnrichments()) {
+      if (!enrichment.enrichDir) {
+        updated = node
+        continue
+      }
+      // if the user forgets to return the node, we assume they just modified the existing node
+      // and we don't update the reference
+      const ret = await enrichment.enrichDir(updated) 
+      if (ret) {
+        updated = ret
+      }
+    }
+    return updated
+  }
+
+  private async enrichMediaNode(node: IMediaNode): Promise<IMediaNode> {
+    let updated = node
+    for (const enrichment of this.onLoadEnrichments()) {
+      if (!enrichment.enrichMedia) {
+        updated = node
+        continue
+      }
+      // if the user forgets to return the node, we assume they just modified the existing node
+      // and we don't update the reference
+      const ret = await enrichment.enrichMedia(updated) 
+      if (ret) {
+        updated = ret
+      }
+    }
+    return updated
+  }
+
+  private async enrichDiscoveryDocNode(node: IDocNode): Promise<IDocNode> {
+    let updated = node
+    for (const enrichment of this.onLoadEnrichments()) {
+      if (!enrichment.enrichDoc) {
+        updated = node
+        continue
+      }
+      // if the user forgets to return the node, we assume they just modified the existing node
+      // and we don't update the reference
+      const ret = await enrichment.enrichDoc(updated) as IDocNode 
+      if (ret) {
+        updated = ret
+      }
+    }
+    return updated
+  }
+
+  async enrichLoadDocNode(node: ILoadedDocNode): Promise<ILoadedDocNode> {
+    let updated = node
+    for (const enrichment of this.onLoadEnrichments()) {
+      if (!enrichment.enrichDoc) {
+        updated = node
+        continue
+      }
+      // if the user forgets to return the node, we assume they just modified the existing node
+      // and we don't update the reference
+      const ret = await enrichment.enrichDoc(updated) as ILoadedDocNode
+      if (ret) {
+        updated = ret
+      }
+    }
+    return updated
   }
 
   abstract listFiles(): Promise<string[]>
@@ -330,7 +438,6 @@ export abstract class AbstractBaseSource implements IDocSource {
     const ext = path.extname(filePath)
     return this.options.extensionMapping[ext] || 'unknown'
   }
-
 
   isIndexDoc(relPath: string): boolean {
     return path.parse(relPath).name === this.options.indexDocName
@@ -409,10 +516,16 @@ export abstract class AbstractBaseSource implements IDocSource {
     }
     return {
       title: parsed.name,
-      version: parent?.id.version || '',
+      version: parent?.pathId.version || '',
       index: index,
     }
   }
+  private resolveEnrichment(enrichConfig: EnrichmentConfig): IEnrichment {
+    if (typeof enrichConfig === 'function') {
+      return enrichConfig()
+    }
+
+    // TODO add the default enrichments
+    throw new Error('Not implemented')
+  }
 }
-
-

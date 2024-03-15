@@ -1,11 +1,16 @@
-import type { ReactNode, createElement, Fragment } from 'react'
-import { ValidationError } from './validator'
+import type { Fragment, ReactNode, createElement } from 'react'
 import { SourceConfig } from './config'
+import { IEnrichment } from './enrichment'
+import { IExtractor } from './extractor'
+import { IValidator, ValidationError } from './validator'
+
 /**
- * Represents an id, which have may multiple version
+ * Uniquely identifies a document with the path and version
+ * As we may have  multiple versions at the same path, we need the version to uniquely identify a document
+ *
  */
-export type DocId = {
-  id: string
+export type PathDocId = {
+  path: string
   version: string
 }
 
@@ -33,7 +38,7 @@ export type Node = {
   /**
    * The unique identifier for the node, used in URLs/paths
    */
-  readonly id: DocId
+  readonly pathId: PathDocId
   /**
    * The index used in determining the order of files
    */
@@ -49,6 +54,11 @@ export type Node = {
    * it must belong to a directory
    */
   readonly parent?: IDirNode
+
+  /**
+   * A bag of metadata properties to be used by enrichments and other plugins to add metadata
+   */
+  readonly metadata: Record<string, any>
 }
 
 export type NavNode = Node & {
@@ -66,14 +76,8 @@ export type NavNode = Node & {
    * Indicates if an item should build a "link"
    */
   navigable(): boolean
-
-  /**
-   * TODO determine if this lives here?
-   *
-   * used to determine if a link should belong here
-   */
-  //buildRelativeLink: (meta: Record<string, any>) => Promise<string>
 }
+
 /**
  * Represents a "directory" node in the meta data, used to group files
  *
@@ -99,7 +103,7 @@ export type IDocNode = NavNode & {
   readonly type: 'file'
 
   /**
-   * A name of the provider of the document, allows for callers to know 
+   * A name of the provider of the document, allows for callers to know
    * what type of docNode and how to handle it
    */
   readonly providerName: string
@@ -137,9 +141,9 @@ export type IDocNode = NavNode & {
 
   /**
    *
-   * @returns the parsed version of the document
+   * @returns loads the document
    */
-  parse(): Promise<IParsedDocNode>
+  load(): Promise<ILoadedDocNode>
 
   /**
    *
@@ -152,11 +156,11 @@ export type ReactShape = Readonly<{
   createElement: typeof createElement
   Fragment: typeof Fragment
 }>
-export type ComponentRepo = Record<string, React.ComponentType<any>> 
+export type ComponentRepo = Record<string, React.ComponentType<any>>
 export type ReactOptions = {
-  components?: ComponentRepo 
+  components?: ComponentRepo
 } & Record<string, any>
-export type IParsedDocNode = Omit<IDocNode, 'parse'> & {
+export type ILoadedDocNode = Omit<IDocNode, 'load'> & {
   /**
    * the parsed AST of the document
    */
@@ -176,12 +180,12 @@ export type IParsedDocNode = Omit<IDocNode, 'parse'> & {
   renderTarget: 'html' | 'react' | 'other'
 
   /**
-   * 
+   *
    * @param react a react implementation
    * @param opts opts, primarily, a component repo for any components that may be needed
    * @returns A react node which can render the document
    */
-  renderReact: (react: ReactShape, opts: ReactOptions ) => Promise<ReactNode>
+  renderReact: (react: ReactShape, opts: ReactOptions) => Promise<ReactNode>
 
   /**
    * Render to a string
@@ -189,7 +193,7 @@ export type IParsedDocNode = Omit<IDocNode, 'parse'> & {
   renderHtml(): Promise<string>
 
   /**
-   * Implementation specific rendering function, the caller needs to know what 
+   * Implementation specific rendering function, the caller needs to know what
    * the required arguments and return types
    * @param args any arguments needed to render the document
    */
@@ -201,7 +205,10 @@ export type IParsedDocNode = Omit<IDocNode, 'parse'> & {
   asMarkdown(): Promise<string>
 }
 
-export type IRenderableDocNode = Pick<IParsedDocNode, 'renderTarget' | 'renderReact' | 'renderHtml' | 'renderOther'>
+export type IRenderableDocNode = Pick<
+  ILoadedDocNode,
+  'renderTarget' | 'renderReact' | 'renderHtml' | 'renderOther'
+>
 
 export type DocFileType =
   | 'markdown'
@@ -274,6 +281,10 @@ export type DocProvider = {
     index: number,
     parent?: IDirNode
   ) => Promise<IDocNode>
+
+  defaultExtractors: () => IExtractor[]
+  defaultValidators: () => IValidator[]
+  defaultEnrichments: () => IEnrichment[]
 }
 
 export type IDocSource = {
@@ -281,7 +292,11 @@ export type IDocSource = {
   readonly sourceRoot: string
   readonly provider: DocProvider
   readonly sourceType: string
+  enrichments: IEnrichment[]
   buildTree: () => Promise<IDocTree>
+  defaultExtractors: () => IExtractor[]
+  defaultValidators: () => IValidator[]
+  defaultEnrichments: () => IEnrichment[]
 }
 
 // Type guard for IDirNode
@@ -318,17 +333,71 @@ export type DocLocation = {
 
 export type IDocRepo = {
   repoName: string
+  /**
+   * returns all docs in the repo
+   */
   docs(): Promise<IDocNode[]>
   /**
    * returns one or more docs. If the doc has multiple versions, all will be returned unless a version is specified
-   * @param id the id doc
+   * @param path the path to the doc
    * @param version an optional version
    */
-  doc(id: string, version?: string): Promise<IDocNode[]>
-  media(): Promise<IMediaNode[]>
-  mediaItem(id: string, version?: string): Promise<IMediaNode[]>
+  doc(path: string, version?: string): Promise<IDocNode[]>
 
+  /**
+   * returns all media in the repo
+   */
+  media(): Promise<IMediaNode[]>
+
+  /**
+   * Returns one or more media items. If the media has multiple versions, all will be returned unless a version is specified
+   * @param path the path to the media
+   * @param version the version of the media
+   */
+  mediaItem(path: string, version?: string): Promise<IMediaNode[]>
+
+  /**
+   * Run *all* configured extractors and return any extracted data, with the key being the name
+   * of the extractor and the record being the extracted data
+   *
+   * For more control, use the extractSet method which allows for a specific set of extractors to be run
+   */
+  extract(): Promise<Record<string, any>>
+
+  /**
+   * Run the configured extractors and return any extracted data, with the key being the name of the extractor
+   *
+   * @param extractors a set of extractors to run
+   */
+  extractSet(extractors: IExtractor[]): Promise<Record<string, any>>
+
+  /**
+   * Run *all* configured validators and return any errors
+   *
+   * For more control, use validateSet which allows for a specific set of validators to be run
+   */
   validate(): Promise<ValidationError[]>
 
+  /**
+   * Run the configured validators and return any errors
+   *
+   * Useful for when you want to run some subset of validation (like validators that should fail a build or validators that don't load documents)
+   * @param validators a set of validators to run
+   */
+  validateSet(validators: IValidator[]): Promise<ValidationError[]>
+
+  /**
+   * The list of configured extractors
+   */
+  extractors: IExtractor[]
+  /**
+   * The list of configured validators
+   */
+  validators: IValidator[]
+
+  /**
+   * Allows for walking all the nodes in the tree, intented for use by validators / extractors, etc
+   * to perform operations over all documents
+   */
   walkBfs(): Generator<Node, void, unknown>
 }

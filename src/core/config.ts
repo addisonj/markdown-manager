@@ -3,6 +3,7 @@ import { IExtractor } from './extractor'
 import { LoggingConfig } from './logging'
 import { DocFileType, DocProvider, IDocSource } from './types'
 import { IValidator } from './validator'
+import { IEnrichment } from './enrichment'
 
 export type SourceTypes = 'files' | 'git' | (() => IDocSource)
 
@@ -43,6 +44,10 @@ export function isMarkdocOptions(
 export type SourceConfig = {
   source: SourceTypes
   options: FileSourceOptions | ExtraSourceOptions
+  enableDefaultEnrichments?: boolean
+  enableDefaultValidators?: boolean
+  enableDefaultExtractors?: boolean
+  enrichments?: IEnrichment[]
   markdownFlavor: MarkdownFlavors
   markdownOptions?: MarkdocOptions | Record<string, any>
 } & Record<string, any>
@@ -61,8 +66,14 @@ export type ExtractorConfig =
     }
   | (() => IExtractor)
 
+export type EnrichmentConfig =
+  | {
+      name: string
+      options?: Record<string, any>
+    }
+  | (() => IEnrichment)
+
 export type RepoConfig = {
-  webUrlPattern: string | ((doc: any) => string)
   validators: ValidatorConfig[]
   extractors: ExtractorConfig[]
   sources: Record<string, SourceConfig>

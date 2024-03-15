@@ -11,5 +11,5 @@
     "outDir": "dist"
   },
   "include": ["**/*.ts", "**/*.d.ts"],
-  "exclude": ["dist", "spec", "**/*.test.ts", "**/__*.ts", "vitest.config.ts"]
+  "exclude": ["dist", "spec", "**/*.test.ts", "**/__*.ts", "vitest.config.ts", "demo"]
 }

@@ -13,7 +13,9 @@ import {
   DocProvider,
   IDirNode,
   IDocSource,
-  IParsedDocNode,
+  IExtractor,
+  ILoadedDocNode,
+  IValidator,
   LoggingApi,
   MarkdocOptions,
   OutLink,
@@ -24,8 +26,8 @@ import {
   getLogger,
   isMarkdocOptions,
 } from '../core'
+import { IEnrichment } from '../core/enrichment'
 import { extractLinks } from './helpers'
-import path from 'path'
 
 // TODO figure this out...
 export class MarkdocLink implements OutLink {
@@ -39,7 +41,7 @@ export class MarkdocLink implements OutLink {
 
 export class MarkdocDocNode
   extends AbstractFileDocNode
-  implements IParsedDocNode
+  implements ILoadedDocNode
 {
   private _ast: MDNode | undefined
   private linkCache: MarkdocLink[] | undefined
@@ -74,7 +76,7 @@ export class MarkdocDocNode
     // TODO finish this later
     throw new Error('Method not implemented.')
   }
-  async parse(): Promise<MarkdocDocNode> {
+  async load(): Promise<MarkdocDocNode> {
     if (this._ast) {
       return Promise.resolve(this)
     }
@@ -83,7 +85,8 @@ export class MarkdocDocNode
     const decoded = decoder.decode(contents)
     this._ast = parse(decoded)
     this.linkCache = extractLinks(this.physicalPath(), this._ast)
-    return Promise.resolve(this)
+    // TODO decide if we like this API... or if we can push it downstream
+    return await this.source.enrichLoadDocNode(this) as MarkdocDocNode 
   }
   links(): MarkdocLink[] {
     if (!this.linkCache) {
@@ -122,6 +125,15 @@ export class MarkdocFileProvider implements DocProvider {
       ...sourceConfig.markdownOptions,
     }
     this.mdConfig = markdocConfig
+  }
+  defaultExtractors(): IExtractor[] {
+    return []
+  }
+  defaultValidators(): IValidator[] {
+    return []
+  }
+  defaultEnrichments(): IEnrichment[] {
+    return []
   }
 
   async buildDocNode(
@@ -173,7 +185,6 @@ export class MarkdocFileProvider implements DocProvider {
       return this.partialCache
     }
     const castSource = this.source as BaseFileSource
-    console.log('checking the source', this.source)
     if (!castSource.currentTree) {
       this.logger.warn('No current tree, cannot gather partials')
       return {}
@@ -182,7 +193,7 @@ export class MarkdocFileProvider implements DocProvider {
     const foundPartials: Record<string, MDNode> = {}
     for (const node of castSource.currentTree.walkBfs()) {
       if (node instanceof MarkdocDocNode && node.isPartial) {
-        const parsed = await node.parse()
+        const parsed = await node.load()
         foundPartials[node.relPath] = parsed.ast()
       }
     }
@@ -198,7 +209,9 @@ export class MarkdocFileProvider implements DocProvider {
   }
 
   isPartialPath(relPath: string): boolean {
-    return this.providerConfig.partialHints.some((hint) => relPath.includes(hint))
+    return this.providerConfig.partialHints.some((hint) =>
+      relPath.includes(hint)
+    )
   }
 
   static async buildProvider(config: SourceConfig): Promise<DocProvider> {

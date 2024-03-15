@@ -1,22 +1,24 @@
+import admonitionPlgunin from '@docusaurus/mdx-loader/lib/remark/admonitions'
 import { evaluate } from '@mdx-js/mdx'
 import type { ReactNode } from 'react'
+import directivePlugin from 'remark-directive'
 import {
   AbstractFileDocNode,
   BaseFileSource,
   DocProvider,
   IDirNode,
   IDocSource,
-  IParsedDocNode,
+  IExtractor,
+  ILoadedDocNode,
+  IValidator,
   OutLink,
   ReactOptions,
   ReactShape,
   SourceConfig,
 } from '../core'
-import admonitionPlgunin from '@docusaurus/mdx-loader/lib/remark/admonitions'
-import directivePlugin from 'remark-directive'
-import path from 'path'
+import { IEnrichment } from '../core/enrichment'
 
-export class MdxDocNode extends AbstractFileDocNode implements IParsedDocNode {
+export class MdxDocNode extends AbstractFileDocNode implements ILoadedDocNode {
   providerName: string = 'mdx-file'
   private _ast: string | undefined
   private linkCache: OutLink[] | undefined
@@ -48,7 +50,7 @@ export class MdxDocNode extends AbstractFileDocNode implements IParsedDocNode {
   asMarkdown(): Promise<string> {
     throw new Error('Method not implemented.')
   }
-  async parse(): Promise<MdxDocNode> {
+  async load(): Promise<MdxDocNode> {
     if (this._ast) {
       return Promise.resolve(this)
     }
@@ -58,7 +60,8 @@ export class MdxDocNode extends AbstractFileDocNode implements IParsedDocNode {
     this._ast = decoded
     // TODO figure out how to extract links!
     this.linkCache = []
-    return Promise.resolve(this)
+    // TODO decide if we like this API... or if we can push it downstream
+    return await this.source.enrichLoadDocNode(this) as MdxDocNode
   }
   links(): OutLink[] {
     if (!this.linkCache) {
@@ -94,6 +97,15 @@ export class MdxFileProvider implements DocProvider {
   }
   static async buildProvider(config: SourceConfig): Promise<DocProvider> {
     return new MdxFileProvider()
+  }
+  defaultExtractors(): IExtractor[] {
+    return []
+  }
+  defaultValidators(): IValidator[] {
+    return []
+  }
+  defaultEnrichments(): IEnrichment[] {
+    return []
   }
   name: string = 'mdx-file'
 }

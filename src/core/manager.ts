@@ -78,6 +78,8 @@ export class Manager {
     if (config.name === 'frontmatter') {
       // TODO add frontmatter extractor
       return new (class implements IExtractor {
+        name: string = 'frontmatter'
+        requiresLoad: boolean = false
         extract(repo: IDocRepo): Promise<Extraction<any>[]> {
           throw new Error('Method not implemented.')
         }
@@ -85,6 +87,8 @@ export class Manager {
     } else if (config.name === 'markdown') {
       // TODO add markdown extractor
       return new (class implements IExtractor {
+        name: string = 'markdown'
+        requiresLoad: boolean = true
         extract(repo: IDocRepo): Promise<Extraction<any>[]> {
           throw new Error('Method not implemented.')
         }
@@ -102,6 +106,8 @@ export class Manager {
     if (config.name === 'markdown') {
       // TODO add markdown validator
       return new (class implements IValidator {
+        name: string = 'markdown'
+        requiresLoad: boolean = true
         validate(doc: any): Promise<any> {
           throw new Error('Method not implemented.')
         }

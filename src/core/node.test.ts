@@ -45,10 +45,10 @@ describe('Core Node functions', () => {
       // Test the initial values of the properties
       expect(n.relPath).toBe('t1/test.md')
       expect(n.type).toBe('file')
-      expect(n.id).toEqual({ id: 't1test.md', version: '' })
+      expect(n.pathId).toEqual({ path: 't1/test.md', version: '' })
       expect(n.index).toBe(0)
       expect(n.depth).toBe(1)
-      expect(n.parent?.id).toStrictEqual({ id: 't1', version: '' })
+      expect(n.parent?.pathId).toStrictEqual({ path: 't1', version: '' })
       expect(n.navTitle).toBe('test')
       expect(n.hidden).toBe(false)
       // ensure metadata is defaulted correctly
@@ -59,7 +59,7 @@ describe('Core Node functions', () => {
       // check methods are working
       expect(await n.asMarkdown()).toBe('content')
       expect(await n.read()).toBe('content')
-      expect(n.parents().map((p) => p.id.id)).toEqual(['t1'])
+      expect(n.parents().map((p) => p.pathId.path)).toEqual(['t1'])
       expect(n.links()).toEqual([])
       expect(n.localLinks()).toEqual([])
       expect(await n.renderHtml()).toEqual('<article><p>content</p></article>')
@@ -72,7 +72,7 @@ describe('Core Node functions', () => {
       if (!n1 || !n2) {
         throw new Error('Node not defined, unexpected')
       }
-      expect(n1.parent?.id).toStrictEqual(n2.parent?.id)
+      expect(n1.parent?.pathId).toStrictEqual(n2.parent?.pathId)
     })
     it('should parse the frontmatter', async () => {
       const md = `---
@@ -87,7 +87,7 @@ content
       if (!n) {
         throw new Error('Node not defined, unexpected')
       }
-      expect(n.id.id).toBe('test.md')
+      expect(n.pathId.path).toBe('test.md')
       expect(n.parent).toBeUndefined()
       expect(n.frontmatter).toEqual({
         title: 'Test Document',
