@@ -1,0 +1,9 @@
+demo/
+src/
+docs/
+.vscode/
+.devcontainer/
+.github/
+
+
+*.tgz
