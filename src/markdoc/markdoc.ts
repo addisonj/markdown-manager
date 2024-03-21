@@ -85,8 +85,7 @@ export class MarkdocDocNode
     const decoded = decoder.decode(contents)
     this._ast = parse(decoded)
     this.linkCache = extractLinks(this.physicalPath(), this._ast)
-    // TODO decide if we like this API... or if we can push it downstream
-    return await this.source.enrichLoadDocNode(this) as MarkdocDocNode 
+    return this
   }
   links(): MarkdocLink[] {
     if (!this.linkCache) {

@@ -4,15 +4,21 @@ import {
   ExtractorConfig,
   ManagerConfig,
   SourceConfig,
+  UrlExtractorFunc,
   ValidatorConfig,
 } from './config'
 import { Extraction, IExtractor } from './extractor'
 import { BaseFileSource } from './file_source'
 import { LoggingApi, getLogger } from './logging'
 import { DocRepo } from './repo'
-import { DocProvider, IDocRepo, IDocSource } from './types'
+import { DocProvider, IDirNode, IDocNode, IDocRepo, IDocSource, IMediaNode } from './types'
 import { IValidator } from './validator'
 
+export function defaultUrlExtractor(
+  doc: IDirNode | IDocNode | IMediaNode
+): string | undefined {
+  return doc.relPath
+}
 export class Manager {
   private logger: LoggingApi
   private repoCache: Record<string, IDocRepo> = {}
@@ -24,13 +30,21 @@ export class Manager {
     if (this.repoCache[name]) {
       return this.repoCache[name]
     }
-    const sources = this.config.repos[name].sources
-    const validators = this.config.repos[name].validators
-    const extractors = this.config.repos[name].extractors
+    const repoConf = this.config.repos[name]
+    if (!repoConf) {
+      throw new Error(`No repo found with name: ${name}`)
+    }
+    const sources = repoConf.sources
+    const validators = repoConf.validators
+    const extractors = repoConf.extractors
 
     const resSources = await Promise.all(
       Object.keys(sources).map(async (key) => {
-        const s = await this.resolveSource(key, sources[key])
+        const s = await this.resolveSource(
+          key,
+          sources[key],
+          repoConf.urlExtractor || defaultUrlExtractor
+        )
         return await s.buildTree()
       })
     )
@@ -40,7 +54,14 @@ export class Manager {
     this.repoCache[name] = repo
     return repo
   }
-  private async resolveSource(name: string, config: SourceConfig): Promise<IDocSource> {
+  registeredRepos(): string[] {
+    return Object.keys(this.repoCache)
+  }
+  private async resolveSource(
+    name: string,
+    config: SourceConfig,
+    urlExtractor: UrlExtractorFunc
+  ): Promise<IDocSource> {
     if (typeof config.source === 'function') {
       return config.source()
     }
@@ -58,11 +79,7 @@ export class Manager {
     }
 
     if (config.source === 'files') {
-      return new BaseFileSource(
-        name,
-        config,
-        provider,
-      )
+      return new BaseFileSource(name, config, provider, urlExtractor)
     } else if (config.source === 'git') {
       throw new Error('Git sources not yet supported')
     } else {
@@ -80,7 +97,7 @@ export class Manager {
       return new (class implements IExtractor {
         name: string = 'frontmatter'
         requiresLoad: boolean = false
-        extract(repo: IDocRepo): Promise<Extraction<any>[]> {
+        extract(repo: IDocRepo): Promise<Extraction> {
           throw new Error('Method not implemented.')
         }
       })()
@@ -89,7 +106,7 @@ export class Manager {
       return new (class implements IExtractor {
         name: string = 'markdown'
         requiresLoad: boolean = true
-        extract(repo: IDocRepo): Promise<Extraction<any>[]> {
+        extract(repo: IDocRepo): Promise<Extraction> {
           throw new Error('Method not implemented.')
         }
       })()

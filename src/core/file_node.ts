@@ -15,11 +15,11 @@ import {
   isDirNode,
   isDocNode,
 } from './types'
+import path from 'path'
 
 export class FileDirNode implements IDirNode {
   relPath: string
   type: 'directory'
-  pathId: PathDocId
   index: number
   depth: number
   parent?: IDirNode | undefined
@@ -28,26 +28,28 @@ export class FileDirNode implements IDirNode {
   children: Node[]
   metadata: Record<string, any> = {}
   constructor(
-    source: BaseFileSource,
+    public source: BaseFileSource,
     relPath: string,
     index: number,
     parent?: IDirNode | undefined
   ) {
     this.relPath = relPath
-    const info = source.extractTitleVersionIndex(relPath, index, parent)
     this.type = 'directory'
-    this.pathId = {
-      path: relPath,
-      version: info.version,
-    }
-    this.index = info.index
+    this.index = index
     this.depth = parent ? parent.depth + 1 : 0
     this.parent = parent
-    this.navTitle = info.title
-    // TODO implement hidden
+    this.navTitle = path.basename(relPath)
+    // allow for any enrichment to set hidden to true
     this.hidden = false
     // init empty children, children are added later when traversing the tree
     this.children = []
+  }
+  /**
+   * We make this a getter so that we can defer the computation of the webUrl
+   * until we know that children have been added to the node
+   */
+  get webUrl(): string | undefined {
+    return this.source.extractUrl(this)
   }
   *walkBfs(): Generator<Node, void, unknown> {
     for (const child of this.children) {
@@ -57,8 +59,16 @@ export class FileDirNode implements IDirNode {
       }
     }
   }
+  hasChildIndexDoc(): boolean {
+    for (const n of this.navChildren()) {
+      if (isDocNode(n) && n.indexDoc) {
+        return true
+      }
+    }
+    return false
+  }
   navigable(): boolean {
-    if (!this.hidden && this.navChildren().length > 0) {
+    if (!this.hidden && this.hasChildIndexDoc()) {
       return true
     }
     return false
@@ -80,13 +90,28 @@ export class FileDirNode implements IDirNode {
   addChild(node: Node) {
     this.children.push(node)
   }
+
+  asJSON(): any {
+    const children = this.children.map((c) => c.asJSON())
+    return {
+      type: 'directory',
+      relPath: this.relPath,
+      index: this.index,
+      depth: this.depth,
+      navTitle: this.navTitle,
+      hidden: this.hidden,
+      metadata: this.metadata,
+      sourceName: this.source.sourceName,
+      parent: this.parent ? this.parent.relPath : undefined,
+      children,
+    }
+  }
 }
 
 export class FileMediaNode implements IMediaNode {
-  private source: BaseFileSource
+  source: BaseFileSource
   relPath: string
   type: 'media'
-  pathId: PathDocId
   index: number
   depth: number
   parent?: IDirNode | undefined
@@ -101,18 +126,21 @@ export class FileMediaNode implements IMediaNode {
   ) {
     this.source = source
     this.relPath = relPath
-    const info = source.extractTitleVersionIndex(relPath, index, parent)
     this.type = 'media'
-    this.pathId = {
-      path: relPath,
-      version: info.version,
-    }
-    this.index = info.index
+    this.index = index
     this.depth = parent ? parent.depth + 1 : 0
     this.parent = parent
     this.mediaType = source.getMediaType(relPath)
   }
 
+  /**
+   * We make this a getter so that we can defer the computation of the webUrl
+   * in the event that some extractors have added changed the node and the user wants to use
+   * that metadata
+   */
+  get webUrl(): string {
+    return this.source.extractUrl(this) || this.relPath
+  }
   async read(): Promise<ArrayBuffer> {
     const fullPath = this.physicalPath()
     return this.source.readFileRaw(fullPath)
@@ -131,15 +159,27 @@ export class FileMediaNode implements IMediaNode {
   physicalPath(): string {
     return this.source.ensureFullFilePath(this.relPath)
   }
+
+  asJSON() {
+    return {
+      type: 'media',
+      relPath: this.relPath,
+      index: this.index,
+      depth: this.depth,
+      metadata: this.metadata,
+      mediaType: this.mediaType,
+      sourceName: this.source.sourceName,
+      parent: this.parent ? this.parent.relPath : undefined,
+    }
+  }
 }
 
 export abstract class AbstractFileDocNode
   implements IDocNode, IRenderableDocNode
 {
-  protected source: BaseFileSource
+  source: BaseFileSource
   type: 'file'
   relPath: string
-  pathId: PathDocId
   index: number
   depth: number
   parent?: IDirNode | undefined
@@ -160,23 +200,28 @@ export abstract class AbstractFileDocNode
   ) {
     this.source = source
     this.relPath = relPath
-    const info = source.extractTitleVersionIndex(relPath, index, parent)
     this.type = 'file'
-    this.pathId = {
-      path: this.relPath,
-      version: info.version,
-    }
-    this.index = info.index
+    const title = frontmatter.title || path.basename(relPath, path.extname(relPath))
+    this.index = index
     this.depth = parent ? parent.depth + 1 : 0
     this.parent = parent
-    this.navTitle = info.title
+    this.title = title 
+    this.navTitle = frontmatter.navTitle || title
     this.indexDoc = source.isIndexDoc(relPath)
     this.frontmatter = frontmatter
-    // TODO open question: should these be on the parsed doc? or do we need them here?
     this.hidden = frontmatter.hidden || false
-    this.title = frontmatter.title || info.title || ''
     this.tags = frontmatter.tags || []
   }
+
+  /**
+   * We make this a getter so that we can defer the computation of the webUrl
+   * in the event that some extractors have added changed the node and the user wants to use
+   * that metadata
+   */
+  get webUrl(): string {
+    return this.source.extractUrl(this) || this.relPath
+  }
+
   async read(): Promise<string> {
     const fullPath = this.physicalPath()
     const buffer = await this.source.readFileRaw(fullPath)
@@ -202,6 +247,23 @@ export abstract class AbstractFileDocNode
       return false
     }
     return true
+  }
+
+  asJSON() {
+    return {
+      type: 'file',
+      relPath: this.relPath,
+      title: this.title,
+      navTitle: this.navTitle,
+      indexDoc: this.indexDoc,
+      frontmatter: this.frontmatter,
+      tags: this.tags,
+      metadata: this.metadata,
+      index: this.index,
+      depth: this.depth,
+      sourceName: this.source.sourceName,
+      parent: this.parent ? this.parent.relPath : undefined,
+    }
   }
 
   // left to be implemented by the subclass based on the markdown flavor

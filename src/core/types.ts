@@ -1,7 +1,7 @@
 import type { Fragment, ReactNode, createElement } from 'react'
 import { SourceConfig } from './config'
 import { IEnrichment } from './enrichment'
-import { IExtractor } from './extractor'
+import { Extraction, IExtractor } from './extractor'
 import { IValidator, ValidationError } from './validator'
 
 /**
@@ -18,11 +18,13 @@ export type PathDocId = {
  * Represents the root of the tree, with some convenience methods for interacting with the tree
  */
 export type IDocTree = {
+  version: string,
   source: IDocSource
   children: Node[]
   navChildren(): NavNode[]
   getMediaNodes: () => Promise<IMediaNode[]>
   walkBfs(): Generator<Node, void, unknown>
+  asJSON(): any
 }
 
 export type NodeTypes = 'directory' | 'file' | 'media'
@@ -35,14 +37,11 @@ export type Node = {
    * The relative path to the node from the root of the tree
    */
   readonly relPath: string
-  /**
-   * The unique identifier for the node, used in URLs/paths
-   */
-  readonly pathId: PathDocId
+
   /**
    * The index used in determining the order of files
    */
-  readonly index: number
+  index: number
 
   /**
    * How deep the node is in the tree
@@ -59,18 +58,29 @@ export type Node = {
    * A bag of metadata properties to be used by enrichments and other plugins to add metadata
    */
   readonly metadata: Record<string, any>
+
+  /**
+   * The source that created the node
+   */
+  readonly source: IDocSource
+
+  /**
+   * Serialize the node to JSON, primarily used for debugging 
+   */
+  asJSON(): any 
+
 }
 
 export type NavNode = Node & {
   /**
    * The title used in navigation menus
    */
-  readonly navTitle: string
+  navTitle: string
 
   /**
    * Indicates that an item is hidden in a node
    */
-  readonly hidden: boolean
+  hidden: boolean
 
   /**
    * Indicates if an item should build a "link"
@@ -87,7 +97,19 @@ export type IDirNode = NavNode & {
 
   readonly children: Node[]
 
+  /**
+   * 
+   * @param node adds a child to the directory
+   */
+  addChild(node: Node): void
+
+  /**
+   * Allow to navigate to the "directory", typically used when a directory has an index node
+   */
+  webUrl?: string
+
   walkBfs(): Generator<Node, void, unknown>
+
   /**
    * Only the navigable children, i.e. those that should be in the UI
    */
@@ -103,6 +125,11 @@ export type IDocNode = NavNode & {
   readonly type: 'file'
 
   /**
+   * The web url for the document where it will be available at
+   */
+  webUrl: string
+
+  /**
    * A name of the provider of the document, allows for callers to know
    * what type of docNode and how to handle it
    */
@@ -111,12 +138,12 @@ export type IDocNode = NavNode & {
   /**
    * The title from the frontmatter
    */
-  readonly title: string
+  title: string
 
   /**
    * Any user/automatically generated tags for the document
    */
-  readonly tags: string[]
+  tags: string[]
 
   /**
    * key value pairs of frontmatter data for the document
@@ -126,7 +153,7 @@ export type IDocNode = NavNode & {
   /**
    * Indicates if document is an "index", i.e. the default document for a directory
    */
-  readonly indexDoc: boolean
+  indexDoc: boolean
 
   /**
    * The raw content of the document, with frontmatter removed
@@ -223,7 +250,8 @@ export type MediaType = Omit<DocFileType, 'markdown'>
  */
 export type IMediaNode = Node & {
   readonly type: 'media'
-  readonly mediaType: MediaType
+  mediaType: MediaType
+  webUrl: string
 
   /**
    * The raw content of the document, with frontmatter removed
@@ -282,6 +310,8 @@ export type DocProvider = {
     parent?: IDirNode
   ) => Promise<IDocNode>
 
+  assembleTree?: (source: IDocSource, rootChildren: Node[]) => Promise<IDocTree>
+
   defaultExtractors: () => IExtractor[]
   defaultValidators: () => IValidator[]
   defaultEnrichments: () => IEnrichment[]
@@ -338,11 +368,18 @@ export type IDocRepo = {
    */
   docs(): Promise<IDocNode[]>
   /**
-   * returns one or more docs. If the doc has multiple versions, all will be returned unless a version is specified
+   * returns one or more docs by the path on disk
    * @param path the path to the doc
    * @param version an optional version
    */
-  doc(path: string, version?: string): Promise<IDocNode[]>
+  docByPath(path: string): Promise<IDocNode[]>
+
+
+  /**
+   * Return one or more documents by the URL
+   * @param url the url of the document
+   */
+  docByUrl(url: string): Promise<IDocNode[]>
 
   /**
    * returns all media in the repo
@@ -350,11 +387,11 @@ export type IDocRepo = {
   media(): Promise<IMediaNode[]>
 
   /**
-   * Returns one or more media items. If the media has multiple versions, all will be returned unless a version is specified
+   * Returns one or more media items
    * @param path the path to the media
    * @param version the version of the media
    */
-  mediaItem(path: string, version?: string): Promise<IMediaNode[]>
+  mediaItemByPath(path: string): Promise<IMediaNode[]>
 
   /**
    * Run *all* configured extractors and return any extracted data, with the key being the name
@@ -362,14 +399,14 @@ export type IDocRepo = {
    *
    * For more control, use the extractSet method which allows for a specific set of extractors to be run
    */
-  extract(): Promise<Record<string, any>>
+  extract(): Promise<Extraction[]>
 
   /**
    * Run the configured extractors and return any extracted data, with the key being the name of the extractor
    *
    * @param extractors a set of extractors to run
    */
-  extractSet(extractors: IExtractor[]): Promise<Record<string, any>>
+  extractSet(extractors: IExtractor[]): Promise<Extraction[]>
 
   /**
    * Run *all* configured validators and return any errors
@@ -396,8 +433,13 @@ export type IDocRepo = {
   validators: IValidator[]
 
   /**
-   * Allows for walking all the nodes in the tree, intented for use by validators / extractors, etc
+   * Allows for walking all the nodes in the tree, intended for use by validators / extractors, etc
    * to perform operations over all documents
    */
   walkBfs(): Generator<Node, void, unknown>
+
+  /**
+   * Access the tree of documents
+   */
+  tree(): Promise<IDocTree>
 }

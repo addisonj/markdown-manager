@@ -14,28 +14,25 @@ export type IEnrichment = {
    */
   description?: string
   /**
-   * Indicates when the enrichment will be applied, either when a document/dir is found or when it is loaded
-   * NOTE: enrichDir and enrichMedia are only called when lifecycle is 'onDiscovery'
-   */
-  lifecycle: 'onDiscovery' | 'onLoad'
-  /**
-   * Enrich a document node, if onDisovery, then it is IDocNode, if onLoad it is ILoadedDocNode
+   * Enrich a document node
    * @param node the node to enrich
-   * @returns the updated node
+   * @returns the updated node, or null/undefined to remove it
    */
   enrichDoc?: (
-    node: IDocNode | ILoadedDocNode
-  ) => Promise<IDocNode | ILoadedDocNode>
+    node: IDocNode
+  ) => Promise<IDocNode | undefined | null>
   /**
    * Enrich a directory node
    * @param node the node to enrich
-   * @returns the updated node
+   * @returns the updated node, or null/undefined to remove it. If removed, all children directories will be ignored
+   * 
    */
-  enrichDir?: (node: IDirNode) => Promise<IDirNode>
+  enrichDir?: (node: IDirNode) => Promise<IDirNode | undefined | null>
+
   /**
    * Enrich a media node
    * @param node the node to enrich
-   * @returns the updated node
+   * @returns the updated node, or null/undefined to remove it
    */
-  enrichMedia?: (node: IMediaNode) => Promise<IMediaNode>
+  enrichMedia?: (node: IMediaNode) => Promise<IMediaNode | undefined | null>
 }

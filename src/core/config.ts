@@ -1,7 +1,7 @@
 import { Config } from '@markdoc/markdoc'
 import { IExtractor } from './extractor'
 import { LoggingConfig } from './logging'
-import { DocFileType, DocProvider, IDocSource } from './types'
+import { DocFileType, DocProvider, IDirNode, IDocNode, IDocSource, IMediaNode } from './types'
 import { IValidator } from './validator'
 import { IEnrichment } from './enrichment'
 
@@ -15,7 +15,6 @@ export type MarkdownFlavors =
 
 export type SourceOptions = {
   filePatterns?: string[]
-  titleIndexVersionRegex?: RegExp
   extensionMapping?: Record<string, DocFileType>
   indexDocName?: string
   parseFrontMatter?: (content: string) => Record<string, any>
@@ -47,7 +46,7 @@ export type SourceConfig = {
   enableDefaultEnrichments?: boolean
   enableDefaultValidators?: boolean
   enableDefaultExtractors?: boolean
-  enrichments?: IEnrichment[]
+  enrichments?: EnrichmentConfig[]
   markdownFlavor: MarkdownFlavors
   markdownOptions?: MarkdocOptions | Record<string, any>
 } & Record<string, any>
@@ -73,7 +72,9 @@ export type EnrichmentConfig =
     }
   | (() => IEnrichment)
 
+export type UrlExtractorFunc = (doc: IDocNode | IDirNode | IMediaNode) => string | undefined
 export type RepoConfig = {
+  urlExtractor?: UrlExtractorFunc
   validators: ValidatorConfig[]
   extractors: ExtractorConfig[]
   sources: Record<string, SourceConfig>

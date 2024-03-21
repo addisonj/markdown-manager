@@ -8,6 +8,7 @@ import {
   setupLogging,
 } from './__testutils'
 import { SourceConfig } from './config'
+import { defaultUrlExtractor } from './manager'
 
 describe('Core Node functions', () => {
   setupLogging()
@@ -20,7 +21,7 @@ describe('Core Node functions', () => {
       filePatterns: ['**/*.md'],
     },
   }
-  const source = new TestBaseFileSource('nodetest', config, provider)
+  const source = new TestBaseFileSource('nodetest', config, provider, defaultUrlExtractor)
 
   async function buildNode(
     name: string,
@@ -45,10 +46,9 @@ describe('Core Node functions', () => {
       // Test the initial values of the properties
       expect(n.relPath).toBe('t1/test.md')
       expect(n.type).toBe('file')
-      expect(n.pathId).toEqual({ path: 't1/test.md', version: '' })
       expect(n.index).toBe(0)
-      expect(n.depth).toBe(1)
-      expect(n.parent?.pathId).toStrictEqual({ path: 't1', version: '' })
+      expect(n.depth).toBe(2)
+      expect(n.parent?.relPath).toStrictEqual('t1')
       expect(n.navTitle).toBe('test')
       expect(n.hidden).toBe(false)
       // ensure metadata is defaulted correctly
@@ -59,7 +59,7 @@ describe('Core Node functions', () => {
       // check methods are working
       expect(await n.asMarkdown()).toBe('content')
       expect(await n.read()).toBe('content')
-      expect(n.parents().map((p) => p.pathId.path)).toEqual(['t1'])
+      expect(n.parents().map((p) => p.relPath)).toEqual(['t1', ''])
       expect(n.links()).toEqual([])
       expect(n.localLinks()).toEqual([])
       expect(await n.renderHtml()).toEqual('<article><p>content</p></article>')
@@ -72,7 +72,7 @@ describe('Core Node functions', () => {
       if (!n1 || !n2) {
         throw new Error('Node not defined, unexpected')
       }
-      expect(n1.parent?.pathId).toStrictEqual(n2.parent?.pathId)
+      expect(n1.parent?.relPath).toStrictEqual(n2.parent?.relPath)
     })
     it('should parse the frontmatter', async () => {
       const md = `---
@@ -87,8 +87,8 @@ content
       if (!n) {
         throw new Error('Node not defined, unexpected')
       }
-      expect(n.pathId.path).toBe('test.md')
-      expect(n.parent).toBeUndefined()
+      expect(n.relPath).toBe('test.md')
+      expect(n.parent?.relPath).toEqual('')
       expect(n.frontmatter).toEqual({
         title: 'Test Document',
         tags: ['tag1', 'tag2'],
@@ -117,14 +117,14 @@ content
       ).filter((n) => n !== undefined) as TestDocNode[]
       expect(nodes.length).toBe(8)
 
-      expect(nodes[0].depth).toBe(1)
-      expect(nodes[1].depth).toBe(1)
-      expect(nodes[2].depth).toBe(1)
-      expect(nodes[3].depth).toBe(2)
-      expect(nodes[4].depth).toBe(2)
-      expect(nodes[5].depth).toBe(5)
-      expect(nodes[6].depth).toBe(4)
-      expect(nodes[7].depth).toBe(0)
+      expect(nodes[0].depth).toBe(2)
+      expect(nodes[1].depth).toBe(2)
+      expect(nodes[2].depth).toBe(2)
+      expect(nodes[3].depth).toBe(3)
+      expect(nodes[4].depth).toBe(3)
+      expect(nodes[5].depth).toBe(6)
+      expect(nodes[6].depth).toBe(5)
+      expect(nodes[7].depth).toBe(1)
     })
     it('should handle a really really large tree with random nodes', async () => {
       type RandTree = {

@@ -5,18 +5,18 @@ export async function generateStaticParams() {
   const repo = await getDemoRepo()
   const docs = await repo.docs()
   const paths = docs.map((doc) => ({
-    docId: [doc.pathId.path],
+    docId: doc.relPath.split('/'),
   }))
   console.log('paths', paths)
   return paths
 }
 
-export default async function Page({ params }: { params: { docId: string } }) {
+export default async function Page({ params }: { params: { docId: string[] } }) {
   const repo = await getDemoRepo()
   console.log('pthe path', params.docId)
-  const np = params.docId[0]
+  const np = params.docId.join('/')
   console.log('np', np)
-  const doc = await repo.doc(np)
+  const doc = await repo.docByPath(np)
   if (doc.length === 0) {
     throw new Error('Doc not found')
   }

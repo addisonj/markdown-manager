@@ -8,6 +8,7 @@ import {
   DocProvider,
   IDirNode,
   IDocNode,
+  IDocRepo,
   IDocSource,
   IDocTree,
   ILoadedDocNode,
@@ -17,7 +18,7 @@ import {
 } from './types'
 
 import { Readable } from 'stream'
-import { EnrichmentConfig, SourceConfig, SourceOptions } from './config'
+import { EnrichmentConfig, SourceConfig, SourceOptions, UrlExtractorFunc } from './config'
 import { IEnrichment } from './enrichment'
 import { IExtractor } from './extractor'
 import { LoggingApi, getLogger } from './logging'
@@ -78,8 +79,6 @@ export type AllSourceOptions = Required<SourceOptions>
 
 export const DefaultSourceOptions: AllSourceOptions = {
   filePatterns: DefaultFilePatterns,
-  titleIndexVersionRegex:
-    /^(?<idx>\d+)?\s*-?\s*(?<version>v\d+(\.\d+)?(\.\d+)?)?\s*-?\s*(?<name>.*)/,
   extensionMapping: DefaultMappingTypes,
   indexDocName: 'index',
   parseFrontMatter: (content: string) => {
@@ -94,14 +93,9 @@ export const DefaultSourceOptions: AllSourceOptions = {
   frontMatterMarker: '---',
 }
 
-export type ExtractedInfo = {
-  title: string
-  version: string
-  index: number
-}
-
 type RawTree = {
   level: number
+  index: number
   path: string
   fullPath: string
   dirs: RawTree[]
@@ -124,7 +118,8 @@ export abstract class AbstractBaseSource implements IDocSource {
     public sourceName: string,
     public config: SourceConfig,
     sourceRoot: string,
-    provider: DocProvider
+    provider: DocProvider,
+    private urlExtractor: UrlExtractorFunc
   ) {
     this.sourceRoot = sourceRoot
     this.provider = provider
@@ -142,11 +137,9 @@ export abstract class AbstractBaseSource implements IDocSource {
   get enrichments(): IEnrichment[] {
     return [...this._enrichments, ...this.defaultEnrichments()]
   }
+  // TODO consider renaming, vestigial from old implementation with multiple type of enrichments
   private onDiscoveryEnrichments(): IEnrichment[] {
-    return this.enrichments.filter((e) => e.lifecycle === 'onDiscovery')
-  }
-  private onLoadEnrichments(): IEnrichment[] {
-    return this.enrichments.filter((e) => e.lifecycle === 'onLoad')
+    return this.enrichments
   }
   defaultExtractors(): IExtractor[] {
     if (this.config.enableDefaultExtractors) {
@@ -177,23 +170,26 @@ export abstract class AbstractBaseSource implements IDocSource {
   private buildRawTree(rawFiles: string[]): RawTree {
     const root = {
       level: 0,
+      index: 0,
       path: '',
-      fullPath: '',
+      fullPath: this.sourceRoot,
       dirs: [],
       files: [],
     }
-    function buildNode(relPath: string, node: RawTree) {
+    function buildNode(relPath: string, parentIndex: number, node: RawTree) {
       const parsed = path.parse(relPath)
       const dirs = parsed.dir.split(path.sep).filter((d) => d.trim() !== '')
       let current = node
       // traverse the dirs and create the nodes
-      for (const dir of dirs) {
+      for (let index = 0; index < dirs.length; index++) {
+        const dir = dirs[index]
         const found = current.dirs.find((d) => d.path === dir)
         if (found) {
           current = found
         } else {
           const newNode = {
             level: current.level + 1,
+            index: index,
             path: dir,
             fullPath: path.join(current.fullPath, dir),
             dirs: [],
@@ -205,8 +201,8 @@ export abstract class AbstractBaseSource implements IDocSource {
       }
       current.files.push(parsed.base)
     }
-    for (const file of rawFiles) {
-      buildNode(file, root)
+    for (let index = 0; index < rawFiles.length; index++) {
+      buildNode(rawFiles[index], index, root)
     }
     return root
   }
@@ -215,13 +211,22 @@ export abstract class AbstractBaseSource implements IDocSource {
     // the raw tree is just the directory structure of all matched files for easy traversal
     const rawTree = this.buildRawTree(files)
     // the immediate children
-    const children: Node[] = []
+    const rootChildren: Node[] = []
     // BFS search of raw tree, using a queue
     const queue: RawTree[] = [rawTree]
+
     // keep a map of all the parents
     const parents: Record<string, { parent?: IDirNode; count: number }> = {}
     parents[''] = { parent: undefined, count: 0 }
+
+    // we traverse the tree in a BFS manner using directories
+    // steps:
+    // 1. add any dirs to the queue to process later
+    // 2. find the parent of the directory being processed
+    // 3. create a node for the directory 
+    // 4. process any files in that directory
     while (queue.length > 0) {
+      // STEP 1
       const current = queue.shift()
       if (!current) {
         continue
@@ -232,51 +237,45 @@ export abstract class AbstractBaseSource implements IDocSource {
       )
       // add the next dir for processing
       for (const dir of current.dirs) {
-        this.logger.debug({ dir: dir.path }, 'adding dir to queue')
         queue.push(dir)
       }
-      // find the parent for our current node
-      let curParent: IDirNode | undefined
-      this.logger.debug({ path: current.path }, 'current.path')
-      if (parents[current.fullPath]) {
-        this.logger.debug(
-          { path: current.fullPath, parent: parents[current.fullPath] },
-          'using existing parent'
-        )
-        parents[current.fullPath].count++
-        curParent = parents[current.fullPath].parent
-      } else {
-        this.logger.debug(
-          { path: current.fullPath, parent: parents[current.fullPath] },
-          'creating new parent'
-        )
-        const dirParentPath = path.dirname(current.fullPath)
-        // this is a bit ugly... because of the different ways in which root is represented all of these may be options for the 'root' directory
-        if (
-          dirParentPath === '/' ||
-          dirParentPath === '' ||
-          dirParentPath === '.'
-        ) {
-          this.logger.debug('creating root parent')
-          const newNode = await this.buildDirNode(current.fullPath, 0, undefined)
-          const enriched = await this.enrichDirNode(newNode)
-          curParent = enriched
-          parents[current.fullPath] = { parent: curParent, count: 1 }
-        } else {
-          this.logger.debug({ path: dirParentPath }, 'creating child parent')
-          const dirParent = parents[dirParentPath]?.parent
-          if (!dirParent) {
-            throw new Error('failed to find dirParent')
-          }
-          const allPath = path.join(dirParent.relPath, current.path)
-          const newNode = await this.buildDirNode(allPath, 0, dirParent)
-          const enriched = await this.enrichDirNode(newNode)
-          curParent = enriched
-        }
-        parents[current.fullPath] = { parent: curParent, count: 1 }
-        children.push(curParent)
-      }
+      // END STEP 1
 
+      // STEP 2
+      // find the the parent where we add nodes
+      let curParent: IDirNode | undefined
+      let addNodeFunc: (n: Node) => void
+      // if the parent is the root, then we just add it to the children
+      if (current.level === 0) {
+        addNodeFunc = (n: Node) => rootChildren.push(n)
+      } else {
+        const parentDir = path.resolve(current.fullPath, '..')
+        const parent = parents[parentDir]
+        if (!parent) {
+          this.logger.error({ parentDir, currentDir: current.fullPath, parents: Object.keys(parents)}, 'failed to find parent')
+          throw new Error('failed to find parent')
+        }
+        parent.count++
+        curParent = parent.parent
+        addNodeFunc = (n: Node) => parent.parent?.addChild(n)
+      }
+      // END STEP 2
+
+      // STEP 3
+      // create the node for the directory
+      const relPath = this.ensureRelPath(current.fullPath)
+      const newNode = await this.buildDirNode(relPath, current.index, curParent)
+      const enriched = await this.enrichDirNode(newNode)
+      if (!enriched) {
+        this.logger.info('skipping directory node due to enrichment', { relPath, index: current.index })
+        continue
+      }
+      addNodeFunc(enriched)
+      parents[current.fullPath] = { parent: enriched, count: 1 }
+      curParent = enriched
+      // END STEP 3
+
+      // STEP 4
       // we process the files, using the curParent as the parent for each child
       for (let i = 0; i < current.files.length; i++) {
         const file = current.files[i]
@@ -286,7 +285,7 @@ export abstract class AbstractBaseSource implements IDocSource {
         this.logger.debug(
           {
             file,
-            parent: { id: curParent?.pathId.path, p: curParent?.relPath },
+            parent: { id: curParent?.relPath, p: curParent?.relPath },
             relPath,
           },
           'adding file'
@@ -294,18 +293,31 @@ export abstract class AbstractBaseSource implements IDocSource {
         const fullPath = this.ensureFullFilePath(relPath)
         const ft = this.getFileType(fullPath)
         if (ft === 'markdown') {
-          const newNode = await this.provider.buildDocNode(this, fullPath, i, curParent)
+          const newNode = await this.provider.buildDocNode(this, relPath, i, curParent)
           const enriched = await this.enrichDiscoveryDocNode(newNode)
-          children.push(enriched)
+          if (!enriched) {
+            this.logger.info('skipping doc node due to enrichment', { relPath, index: current.index })
+            continue
+          }
+          addNodeFunc(enriched)
         } else if (ft === 'image' || ft === 'video' || ft === 'document') {
-          const newNode = await this.buildMediaNode(fullPath, i, curParent) 
+          const newNode = await this.buildMediaNode(relPath, i, curParent) 
           const enriched = await this.enrichMediaNode(newNode)
-          children.push(enriched)
+          if (!enriched) {
+            this.logger.info('skipping media node due to enrichment', { relPath, index: current.index })
+            continue
+          }
+          addNodeFunc(enriched)
         }
       }
+      // END STEP 4
     }
-    this.currentTree = new BaseDocTree(this, children)
+    this.currentTree = await this.assembleDocTree(this, rootChildren)
     return this.currentTree
+  }
+
+  extractUrl(node: IDocNode | IDirNode | IMediaNode): string | undefined {
+    return this.urlExtractor(node)
   }
 
   // a small utility method to ensure we normalize the path
@@ -319,70 +331,52 @@ export abstract class AbstractBaseSource implements IDocSource {
     return this.options.extensionMapping[parsed.ext] || 'unknown'
   }
 
-  private async enrichDirNode(node: IDirNode): Promise<IDirNode> {
+  private async enrichDirNode(node: IDirNode): Promise<IDirNode | undefined> {
     let updated = node
-    for (const enrichment of this.onLoadEnrichments()) {
+    for (const enrichment of this.onDiscoveryEnrichments()) {
       if (!enrichment.enrichDir) {
         updated = node
         continue
       }
-      // if the user forgets to return the node, we assume they just modified the existing node
-      // and we don't update the reference
+      // if the user returns null, we assume they want to remove the node
       const ret = await enrichment.enrichDir(updated) 
-      if (ret) {
-        updated = ret
+      if (!ret) {
+        return
       }
+      updated = ret
     }
     return updated
   }
 
-  private async enrichMediaNode(node: IMediaNode): Promise<IMediaNode> {
+  private async enrichMediaNode(node: IMediaNode): Promise<IMediaNode | undefined> {
     let updated = node
-    for (const enrichment of this.onLoadEnrichments()) {
+    for (const enrichment of this.onDiscoveryEnrichments()) {
       if (!enrichment.enrichMedia) {
         updated = node
         continue
       }
-      // if the user forgets to return the node, we assume they just modified the existing node
-      // and we don't update the reference
-      const ret = await enrichment.enrichMedia(updated) 
-      if (ret) {
-        updated = ret
+      // if the user returns null, we assume they want to remove the node
+      const ret = await enrichment.enrichMedia(updated)
+      if (!ret) {
+        return
       }
+      updated = ret
     }
     return updated
   }
 
-  private async enrichDiscoveryDocNode(node: IDocNode): Promise<IDocNode> {
+  private async enrichDiscoveryDocNode(node: IDocNode): Promise<IDocNode | undefined> {
     let updated = node
-    for (const enrichment of this.onLoadEnrichments()) {
+    for (const enrichment of this.onDiscoveryEnrichments()) {
       if (!enrichment.enrichDoc) {
-        updated = node
         continue
       }
-      // if the user forgets to return the node, we assume they just modified the existing node
-      // and we don't update the reference
-      const ret = await enrichment.enrichDoc(updated) as IDocNode 
-      if (ret) {
-        updated = ret
+      // if the user returns null, we assume they want to remove the node
+      const ret = await enrichment.enrichDoc(updated)
+      if (!ret) {
+        return
       }
-    }
-    return updated
-  }
-
-  async enrichLoadDocNode(node: ILoadedDocNode): Promise<ILoadedDocNode> {
-    let updated = node
-    for (const enrichment of this.onLoadEnrichments()) {
-      if (!enrichment.enrichDoc) {
-        updated = node
-        continue
-      }
-      // if the user forgets to return the node, we assume they just modified the existing node
-      // and we don't update the reference
-      const ret = await enrichment.enrichDoc(updated) as ILoadedDocNode
-      if (ret) {
-        updated = ret
-      }
+      updated = ret
     }
     return updated
   }
@@ -412,10 +406,6 @@ export abstract class AbstractBaseSource implements IDocSource {
     parent?: IDirNode
   ): Promise<IMediaNode>
 
-  buildId(name: string): string {
-    return slugify(name)
-  }
-
   /**
    * Safely builds a full link which *must* be within the source root
    * @param relPath
@@ -441,6 +431,13 @@ export abstract class AbstractBaseSource implements IDocSource {
 
   isIndexDoc(relPath: string): boolean {
     return path.parse(relPath).name === this.options.indexDocName
+  }
+
+  assembleDocTree(source: AbstractBaseSource, rootNodes: Node[]): Promise<IDocTree> {
+    if (this.provider.assembleTree) {
+      return this.provider.assembleTree(source, rootNodes)
+    } 
+    return Promise.resolve(new BaseDocTree(source, rootNodes))
   }
 
   abstract readFileRaw(relPath: string): Promise<ArrayBuffer>
@@ -500,26 +497,6 @@ export abstract class AbstractBaseSource implements IDocSource {
     })
   }
 
-  extractTitleVersionIndex(
-    fullPath: string,
-    index: number,
-    parent?: IDirNode
-  ): ExtractedInfo {
-    const parsed = path.parse(fullPath)
-    const match = parsed.name.match(this.options.titleIndexVersionRegex)
-    if (match) {
-      return {
-        title: match.groups?.name || '',
-        version: match.groups?.version || '',
-        index: parseInt(match.groups?.idx || '0'),
-      }
-    }
-    return {
-      title: parsed.name,
-      version: parent?.pathId.version || '',
-      index: index,
-    }
-  }
   private resolveEnrichment(enrichConfig: EnrichmentConfig): IEnrichment {
     if (typeof enrichConfig === 'function') {
       return enrichConfig()

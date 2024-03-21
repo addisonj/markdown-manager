@@ -60,8 +60,7 @@ export class MdxDocNode extends AbstractFileDocNode implements ILoadedDocNode {
     this._ast = decoded
     // TODO figure out how to extract links!
     this.linkCache = []
-    // TODO decide if we like this API... or if we can push it downstream
-    return await this.source.enrichLoadDocNode(this) as MdxDocNode
+    return this 
   }
   links(): OutLink[] {
     if (!this.linkCache) {

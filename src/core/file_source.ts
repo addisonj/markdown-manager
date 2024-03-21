@@ -1,12 +1,12 @@
 import fg from 'fast-glob'
 import { createReadStream, promises as fs } from 'fs'
 import { Readable } from 'stream'
-import { SourceConfig } from './config'
+import { SourceConfig, UrlExtractorFunc } from './config'
 import { FileDirNode, FileMediaNode } from './file_node'
 import {
   AbstractBaseSource,
 } from './source'
-import { DocProvider, IDirNode, IMediaNode } from './types'
+import { DocProvider, IDirNode, IDocRepo, IMediaNode } from './types'
 
 export class BaseFileSource extends AbstractBaseSource {
   sourceType: string = 'file'
@@ -14,9 +14,10 @@ export class BaseFileSource extends AbstractBaseSource {
     sourceName: string,
     config: SourceConfig,
     provider: DocProvider,
+    urlExtractor: UrlExtractorFunc
   ) {
     const sourceRoot = config.options.root
-    super(sourceName, config, sourceRoot, provider)
+    super(sourceName, config, sourceRoot, provider, urlExtractor)
   }
   /**
    * Abstract reading to this class so that all IO can be centralized here

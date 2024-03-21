@@ -1,4 +1,4 @@
-import { IExtractor } from './extractor'
+import { Extraction, IExtractor } from './extractor'
 import { MultiSource } from './multi_source'
 import {
   IDocNode,
@@ -14,8 +14,9 @@ import { IValidator, ValidationError } from './validator'
 export class DocRepo implements IDocRepo {
   private source: MultiSource
   private mergedTree: IDocTree
-  private docCache: Record<string, { versions: Record<string, IDocNode> }> = {}
-  private mediaCache: Record<string, { versions: Record<string, IMediaNode> }> =
+  private docCache: Record<string, IDocNode[]> = {}
+  private docByUrlCache: Record<string, IDocNode[]> = {}
+  private mediaCache: Record<string, IMediaNode[]> =
     {}
   constructor(
     public repoName: string,
@@ -30,18 +31,23 @@ export class DocRepo implements IDocRepo {
   private buildCaches() {
     //reset the cache
     this.docCache = {}
+    this.docByUrlCache = {}
     this.mediaCache = {}
     for (const node of this.walkBfs()) {
       if (isDocNode(node)) {
-        if (!this.docCache[node.pathId.path]) {
-          this.docCache[node.pathId.path] = { versions: {} }
+        if (!this.docCache[node.relPath]) {
+          this.docCache[node.relPath] = []
         }
-        this.docCache[node.pathId.path].versions[node.pathId.version] = node
+        if (!this.docByUrlCache[node.webUrl]) {
+          this.docByUrlCache[node.webUrl] = []
+        }
+        this.docCache[node.relPath].push(node)
+        this.docByUrlCache[node.webUrl].push(node)
       } else if (isMediaNode(node)) {
-        if (!this.mediaCache[node.pathId.path]) {
-          this.mediaCache[node.pathId.path] = { versions: {} }
+        if (!this.mediaCache[node.relPath]) {
+          this.mediaCache[node.relPath] = []
         }
-        this.mediaCache[node.pathId.path].versions[node.pathId.version] = node
+        this.mediaCache[node.relPath].push(node)
       }
     }
   }
@@ -53,60 +59,35 @@ export class DocRepo implements IDocRepo {
   }
   docs(): Promise<IDocNode[]> {
     const allDocs = []
-    for (const id in this.docCache) {
-      for (const version in this.docCache[id].versions) {
-        allDocs.push(this.docCache[id].versions[version])
-      }
+    for (const path in this.docCache) {
+      allDocs.push(...this.docCache[path])
     }
     return Promise.resolve(allDocs)
   }
-  doc(id: string, version?: string | undefined): Promise<IDocNode[]> {
-    const docCol = this.docCache[id]
-    if (!docCol) {
-      return Promise.resolve([])
-    }
-    if (!version) {
-      return Promise.resolve(Object.values(docCol.versions))
-    }
-    const doc = docCol.versions[version]
-    if (doc) {
-      return Promise.resolve([doc])
-    }
-    return Promise.resolve([])
+  docByPath(path: string): Promise<IDocNode[]> {
+    return Promise.resolve(this.docCache[path] || [])
+  }
+  docByUrl(url: string): Promise<IDocNode[]> {
+    return Promise.resolve(this.docByUrlCache[url] || [])
   }
   media(): Promise<IMediaNode[]> {
     const allMedia = []
-    for (const id in this.mediaCache) {
-      for (const version in this.mediaCache[id].versions) {
-        allMedia.push(this.mediaCache[id].versions[version])
-      }
+    for (const path in this.mediaCache) {
+      allMedia.push(...this.mediaCache[path])
     }
     return Promise.resolve(allMedia)
   }
-  mediaItem(id: string, version?: string | undefined): Promise<IMediaNode[]> {
-    const mediaCol = this.mediaCache[id]
-    if (!mediaCol) {
-      return Promise.resolve([])
-    }
-    if (!version) {
-      return Promise.resolve(Object.values(mediaCol.versions))
-    }
-    const media = mediaCol.versions[version]
-    if (media) {
-      return Promise.resolve([media])
-    }
-    return Promise.resolve([])
+  mediaItemByPath(path: string): Promise<IMediaNode[]> {
+    return Promise.resolve(this.mediaCache[path] || [])
   }
   validate(): Promise<ValidationError[]> {
     return this.validateSet(this.validators)
   }
-  extract(): Promise<Record<string, any>> {
+  extract(): Promise<Extraction[]> {
     return this.extractSet(this.extractors)
   }
-  extractSet(extractors: IExtractor[]): Promise<Record<string, any>> {
-    return Promise.all(extractors.map((v) => v.extract(this))).then((v) =>
-      v.reduce((acc, cur) => ({ ...acc, ...cur }), {})
-    )
+  extractSet(extractors: IExtractor[]): Promise<Extraction[]> {
+    return Promise.all(extractors.map(async (v) => await v.extract(this)))
   }
   validateSet(validators: IValidator[]): Promise<ValidationError[]> {
     return Promise.all(validators.map((v) => v.validate(this))).then((v) =>
@@ -116,5 +97,9 @@ export class DocRepo implements IDocRepo {
 
   *walkBfs(): Generator<Node, void, unknown> {
     yield* this.mergedTree.walkBfs()
+  }
+
+  tree(): Promise<IDocTree> {
+    return Promise.resolve(this.mergedTree)
   }
 }

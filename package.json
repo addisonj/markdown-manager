@@ -3,7 +3,8 @@
   "type": "module",
   "version": "0.1.0",
   "description": "Manage collections of markdown documents with support for file-based structure, snippets, and more",
-  "main": "index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc",
     "test": "vitest",
