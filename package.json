@@ -1,11 +1,12 @@
 {
   "name": "markdown-manager",
   "type": "module",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Manage collections of markdown documents with support for file-based structure, snippets, and more",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
+    "watch": "tsc -w",
     "prepare": "tsc",
     "build": "tsc",
     "test": "vitest",
@@ -33,6 +34,8 @@
     "@opentelemetry/api": "^1.8.0",
     "fast-glob": "^3.3.2",
     "remark-directive": "^3.0.0",
+    "remark-frontmatter": "^5.0.0",
+    "remark-gfm": "^4.0.0",
     "slugify": "^1.6.6",
     "split2": "^4.2.0",
     "yaml": "^2.4.0"

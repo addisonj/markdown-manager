@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import { BaseFileSource } from './file_source'
 import {
-  PathDocId,
   IDirNode,
   IDocNode,
   IMediaNode,
@@ -49,7 +48,11 @@ export class FileDirNode implements IDirNode {
    * until we know that children have been added to the node
    */
   get webUrl(): string | undefined {
-    return this.source.extractUrl(this)
+    const url = this.source.extractUrl(this)
+    if (!url) {
+      return undefined
+    }
+    return path.normalize(url)
   }
   *walkBfs(): Generator<Node, void, unknown> {
     for (const child of this.children) {
@@ -106,6 +109,26 @@ export class FileDirNode implements IDirNode {
       children,
     }
   }
+
+  dedupeId(): string {
+    return path.join(this.source.sourceRoot, this.relPath)
+  }
+
+  merge(other: IDirNode): void {
+    const idx: Record<string, Node> = {}
+    // just add children first to the idx map so we can dedupe
+    for (const child of this.children) {
+      idx[child.dedupeId()] = child
+    }
+    for (const child of other.children) {
+      if (idx[child.dedupeId()]) {
+        const existing = idx[child.dedupeId()]
+        existing.merge(child)
+      } else {
+        this.addChild(child)
+      }
+    }
+  }
 }
 
 export class FileMediaNode implements IMediaNode {
@@ -139,7 +162,7 @@ export class FileMediaNode implements IMediaNode {
    * that metadata
    */
   get webUrl(): string {
-    return this.source.extractUrl(this) || this.relPath
+    return path.normalize(this.source.extractUrl(this) || this.relPath)
   }
   async read(): Promise<ArrayBuffer> {
     const fullPath = this.physicalPath()
@@ -160,6 +183,13 @@ export class FileMediaNode implements IMediaNode {
     return this.source.ensureFullFilePath(this.relPath)
   }
 
+  dedupeId(): string {
+    return path.join(this.source.sourceRoot, this.relPath)
+  }
+
+  merge(other: IMediaNode): void {
+    this.metadata = { ...this.metadata, ...other.metadata }
+  }
   asJSON() {
     return {
       type: 'media',
@@ -219,7 +249,7 @@ export abstract class AbstractFileDocNode
    * that metadata
    */
   get webUrl(): string {
-    return this.source.extractUrl(this) || this.relPath
+    return path.normalize(this.source.extractUrl(this) || this.relPath)
   }
 
   async read(): Promise<string> {
@@ -247,6 +277,14 @@ export abstract class AbstractFileDocNode
       return false
     }
     return true
+  }
+
+  dedupeId(): string {
+    return path.join(this.source.sourceRoot, this.relPath)
+  }
+
+  merge(other: IDocNode): void {
+    throw new Error('Cannot merge doc nodes, likely a misconfiguration!')
   }
 
   asJSON() {

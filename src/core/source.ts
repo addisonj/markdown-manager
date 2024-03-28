@@ -1,6 +1,4 @@
 import path from 'path'
-import slugify from 'slugify'
-import split from 'split2'
 import { parse } from 'yaml'
 import { BaseDocTree } from './tree'
 import {
@@ -8,32 +6,33 @@ import {
   DocProvider,
   IDirNode,
   IDocNode,
-  IDocRepo,
   IDocSource,
   IDocTree,
-  ILoadedDocNode,
   IMediaNode,
   MediaType,
   Node,
 } from './types'
 
 import { Readable } from 'stream'
-import { EnrichmentConfig, SourceConfig, SourceOptions, UrlExtractorFunc } from './config'
+import {
+  EnrichmentConfig,
+  SourceConfig,
+  SourceOptions,
+  UrlExtractorFunc,
+} from './config'
 import { IEnrichment } from './enrichment'
 import { IExtractor } from './extractor'
 import { LoggingApi, getLogger } from './logging'
 import { IValidator } from './validator'
+import fs from 'fs'
+import { createInterface } from 'readline/promises'
+import type { Interface } from 'readline/promises'
 /**
- * A list of file patterns for the most common markdown and media files
+ * A list of file patterns for the most media files
  */
 export const DefaultFilePatterns = [
-  // markdown types
-  './*.md',
-  './**/*.md',
-  './*.mdoc',
-  './**/*.mdoc',
-  './*.mdx',
-  './**/*.mdx',
+  // NOTE we do *NOT* include markdowk extensions here, as those are added
+  // based on the flavor of markdown
   // image types
   './*.bmp',
   './**/*.bmp',
@@ -51,6 +50,8 @@ export const DefaultFilePatterns = [
   './**/*.tif',
   './*.tiff',
   './**/*.tiff',
+  './*.webp',
+  './**/*.webp',
   // video types
   './*.mp4',
   './**/*.mp4',
@@ -71,6 +72,7 @@ export const DefaultMappingTypes: Record<string, DocFileType> = {
   '.svg': 'image',
   '.tif': 'image',
   '.tiff': 'image',
+  '.webp': 'image',
   '.mp4': 'video',
   '.pdf': 'document',
 }
@@ -78,7 +80,7 @@ export const DefaultMappingTypes: Record<string, DocFileType> = {
 export type AllSourceOptions = Required<SourceOptions>
 
 export const DefaultSourceOptions: AllSourceOptions = {
-  filePatterns: DefaultFilePatterns,
+  extraFilePatterns: DefaultFilePatterns,
   extensionMapping: DefaultMappingTypes,
   indexDocName: 'index',
   parseFrontMatter: (content: string) => {
@@ -91,6 +93,7 @@ export const DefaultSourceOptions: AllSourceOptions = {
     }
   },
   frontMatterMarker: '---',
+  markdownExtensions: ['md'],
 }
 
 type RawTree = {
@@ -204,6 +207,10 @@ export abstract class AbstractBaseSource implements IDocSource {
     for (let index = 0; index < rawFiles.length; index++) {
       buildNode(rawFiles[index], index, root)
     }
+    fs.writeFileSync(
+      `/tmp/raw-tree-${this.sourceName}.json`,
+      JSON.stringify(root, null, 2)
+    )
     return root
   }
   async buildTree(): Promise<IDocTree> {
@@ -223,7 +230,7 @@ export abstract class AbstractBaseSource implements IDocSource {
     // steps:
     // 1. add any dirs to the queue to process later
     // 2. find the parent of the directory being processed
-    // 3. create a node for the directory 
+    // 3. create a node for the directory
     // 4. process any files in that directory
     while (queue.length > 0) {
       // STEP 1
@@ -252,12 +259,19 @@ export abstract class AbstractBaseSource implements IDocSource {
         const parentDir = path.resolve(current.fullPath, '..')
         const parent = parents[parentDir]
         if (!parent) {
-          this.logger.error({ parentDir, currentDir: current.fullPath, parents: Object.keys(parents)}, 'failed to find parent')
+          this.logger.error(
+            {
+              parentDir,
+              currentDir: current.fullPath,
+              parents: Object.keys(parents),
+            },
+            'failed to find parent'
+          )
           throw new Error('failed to find parent')
         }
         parent.count++
         curParent = parent.parent
-        addNodeFunc = (n: Node) => parent.parent?.addChild(n)
+        addNodeFunc = (n: Node) => curParent?.addChild(n)
       }
       // END STEP 2
 
@@ -267,7 +281,10 @@ export abstract class AbstractBaseSource implements IDocSource {
       const newNode = await this.buildDirNode(relPath, current.index, curParent)
       const enriched = await this.enrichDirNode(newNode)
       if (!enriched) {
-        this.logger.info('skipping directory node due to enrichment', { relPath, index: current.index })
+        this.logger.info('skipping directory node due to enrichment', {
+          relPath,
+          index: current.index,
+        })
         continue
       }
       addNodeFunc(enriched)
@@ -293,18 +310,29 @@ export abstract class AbstractBaseSource implements IDocSource {
         const fullPath = this.ensureFullFilePath(relPath)
         const ft = this.getFileType(fullPath)
         if (ft === 'markdown') {
-          const newNode = await this.provider.buildDocNode(this, relPath, i, curParent)
+          const newNode = await this.provider.buildDocNode(
+            this,
+            relPath,
+            i,
+            curParent
+          )
           const enriched = await this.enrichDiscoveryDocNode(newNode)
           if (!enriched) {
-            this.logger.info('skipping doc node due to enrichment', { relPath, index: current.index })
+            this.logger.info('skipping doc node due to enrichment', {
+              relPath,
+              index: current.index,
+            })
             continue
           }
           addNodeFunc(enriched)
         } else if (ft === 'image' || ft === 'video' || ft === 'document') {
-          const newNode = await this.buildMediaNode(relPath, i, curParent) 
+          const newNode = await this.buildMediaNode(relPath, i, curParent)
           const enriched = await this.enrichMediaNode(newNode)
           if (!enriched) {
-            this.logger.info('skipping media node due to enrichment', { relPath, index: current.index })
+            this.logger.info('skipping media node due to enrichment', {
+              relPath,
+              index: current.index,
+            })
             continue
           }
           addNodeFunc(enriched)
@@ -339,7 +367,7 @@ export abstract class AbstractBaseSource implements IDocSource {
         continue
       }
       // if the user returns null, we assume they want to remove the node
-      const ret = await enrichment.enrichDir(updated) 
+      const ret = await enrichment.enrichDir(updated)
       if (!ret) {
         return
       }
@@ -348,7 +376,9 @@ export abstract class AbstractBaseSource implements IDocSource {
     return updated
   }
 
-  private async enrichMediaNode(node: IMediaNode): Promise<IMediaNode | undefined> {
+  private async enrichMediaNode(
+    node: IMediaNode
+  ): Promise<IMediaNode | undefined> {
     let updated = node
     for (const enrichment of this.onDiscoveryEnrichments()) {
       if (!enrichment.enrichMedia) {
@@ -365,7 +395,9 @@ export abstract class AbstractBaseSource implements IDocSource {
     return updated
   }
 
-  private async enrichDiscoveryDocNode(node: IDocNode): Promise<IDocNode | undefined> {
+  private async enrichDiscoveryDocNode(
+    node: IDocNode
+  ): Promise<IDocNode | undefined> {
     let updated = node
     for (const enrichment of this.onDiscoveryEnrichments()) {
       if (!enrichment.enrichDoc) {
@@ -433,10 +465,13 @@ export abstract class AbstractBaseSource implements IDocSource {
     return path.parse(relPath).name === this.options.indexDocName
   }
 
-  assembleDocTree(source: AbstractBaseSource, rootNodes: Node[]): Promise<IDocTree> {
+  assembleDocTree(
+    source: AbstractBaseSource,
+    rootNodes: Node[]
+  ): Promise<IDocTree> {
     if (this.provider.assembleTree) {
       return this.provider.assembleTree(source, rootNodes)
-    } 
+    }
     return Promise.resolve(new BaseDocTree(source, rootNodes))
   }
 
@@ -444,22 +479,29 @@ export abstract class AbstractBaseSource implements IDocSource {
 
   abstract readFileStream(relPath: string): Promise<Readable>
 
+  async readFileLinesStream(relPath: string): Promise<Interface> {
+    const stream = await this.readFileStream(relPath)
+    const rl = createInterface({
+      input: stream,
+      crlfDelay: Infinity, // Recognize all instances of CR LF ('\r\n') as a single line break.
+    })
+    return rl
+  }
+
   async extractMarkdownMetadata(relPath: string): Promise<Record<string, any>> {
     return new Promise(async (resolve, reject) => {
       try {
-        const stream = await this.readFileStream(relPath)
-        // we check the first few lines are `---` and then catch until the next `---`
-        // then we parse using the provided parser
-        // if the frontmatter is not found after 10 lines, we return an empty object
+        const rl = await this.readFileLinesStream(relPath)
+
         let lineCount = 0
         let inFrontmatter = false
         let content = ''
-        const e = new TextEncoder()
-        stream.pipe(split()).on('data', (line: string) => {
+
+        rl.on('line', (line: string) => {
           lineCount++
           if (!inFrontmatter) {
             if (lineCount > 10) {
-              stream.destroy()
+              rl.close() // This will close the stream as well.
             }
             if (line.trim() === this.options.frontMatterMarker) {
               this.logger.debug('found frontmatter')
@@ -468,19 +510,19 @@ export abstract class AbstractBaseSource implements IDocSource {
           } else {
             if (line.trim() === this.options.frontMatterMarker) {
               this.logger.debug('found end of frontmatter')
-              stream.destroy()
+              rl.close() // This will also close the stream.
               inFrontmatter = false
               return
             }
-            // if frontmatter is more than 100 lines, just abort
             if (lineCount > 100) {
               this.logger.warn('frontmatter too long, aborting')
-              stream.destroy()
+              rl.close()
             }
             content += line + '\n'
           }
         })
-        stream.on('close', () => {
+
+        rl.on('close', () => {
           try {
             const parsed = this.options.parseFrontMatter(content)
             resolve(parsed || {})
@@ -488,7 +530,8 @@ export abstract class AbstractBaseSource implements IDocSource {
             reject(err)
           }
         })
-        stream.on('error', (err) => {
+
+        rl.on('error', (err) => {
           reject(err)
         })
       } catch (ex) {

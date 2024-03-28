@@ -2,7 +2,6 @@ import {
   IDirNode,
   IDocNode,
   IEnrichment,
-  ILoadedDocNode,
   NavNode,
   isDirNode,
   isDocNode,
@@ -16,7 +15,7 @@ export type ExtractedInfo = {
   index?: number
 }
 export class TitleIndexVersionEnrichment implements IEnrichment {
-  metadataFields: string[] = []
+  metadataFields: string[] = ['version']
   description?: string =
     'Extracts title, version, and index from the file path using a regex'
   lifecycle: 'onDiscovery' | 'onLoad' = 'onDiscovery'
@@ -44,7 +43,7 @@ export class TitleIndexVersionEnrichment implements IEnrichment {
     if (info) {
       node.navTitle = info.title
       if (info.version) {
-        node.pathId.version = info.version
+        node.metadata.version = info.version
       }
       if (info.index) {
         node.index = info.index
@@ -53,8 +52,8 @@ export class TitleIndexVersionEnrichment implements IEnrichment {
     return node
   }
   enrichDoc(
-    node: IDocNode | ILoadedDocNode
-  ): Promise<IDocNode | ILoadedDocNode> {
+    node: IDocNode
+  ): Promise<IDocNode> {
     if (isDocNode(node)) {
       return Promise.resolve(this.enrichBase<IDocNode>(node))
     }

@@ -18,7 +18,7 @@ describe('Core Node functions', () => {
     markdownFlavor: 'markdoc',
     options: {
       root: '/',
-      filePatterns: ['**/*.md'],
+      extraFilePatterns: ['**/*.md'],
     },
   }
   const source = new TestBaseFileSource('nodetest', config, provider, defaultUrlExtractor)

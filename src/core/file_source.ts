@@ -6,7 +6,7 @@ import { FileDirNode, FileMediaNode } from './file_node'
 import {
   AbstractBaseSource,
 } from './source'
-import { DocProvider, IDirNode, IDocRepo, IMediaNode } from './types'
+import { DocProvider, IDirNode, IMediaNode } from './types'
 
 export class BaseFileSource extends AbstractBaseSource {
   sourceType: string = 'file'
@@ -35,7 +35,9 @@ export class BaseFileSource extends AbstractBaseSource {
   }
 
   async listFiles(): Promise<string[]> {
-    return await fg(this.options.filePatterns, { cwd: this.sourceRoot })
+    const mdPatterns = this.options.markdownExtensions.flatMap((ext) => [`*.${ext}`, `**/*.${ext}`])
+    const allPatterns = mdPatterns.concat(this.options.extraFilePatterns)
+    return await fg(allPatterns, { cwd: this.sourceRoot })
   }
 
   /**

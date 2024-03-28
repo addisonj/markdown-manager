@@ -3,28 +3,20 @@ import { SourceConfig } from './config'
 import { IEnrichment } from './enrichment'
 import { Extraction, IExtractor } from './extractor'
 import { IValidator, ValidationError } from './validator'
-
-/**
- * Uniquely identifies a document with the path and version
- * As we may have  multiple versions at the same path, we need the version to uniquely identify a document
- *
- */
-export type PathDocId = {
-  path: string
-  version: string
-}
+import type { Readable } from 'stream'
+import type { Interface } from 'readline/promises'
 
 /**
  * Represents the root of the tree, with some convenience methods for interacting with the tree
  */
 export type IDocTree = {
-  version: string,
   source: IDocSource
   children: Node[]
   navChildren(): NavNode[]
   getMediaNodes: () => Promise<IMediaNode[]>
   walkBfs(): Generator<Node, void, unknown>
   asJSON(): any
+  findNodeByRelPath(relPath: string): Node | undefined
 }
 
 export type NodeTypes = 'directory' | 'file' | 'media'
@@ -65,10 +57,21 @@ export type Node = {
   readonly source: IDocSource
 
   /**
-   * Serialize the node to JSON, primarily used for debugging 
+   * Serialize the node to JSON, primarily used for debugging
    */
-  asJSON(): any 
+  asJSON(): any
 
+  /**
+   * an id that is unique to the node, used for deduping when merging
+   */
+  dedupeId(): string
+
+  /**
+   * Merge the other node into this node, modifying this node
+   * @param other node to merge
+   * throws an error if the nodes are not mergeable
+   */
+  merge(other: Node): void
 }
 
 export type NavNode = Node & {
@@ -98,7 +101,7 @@ export type IDirNode = NavNode & {
   readonly children: Node[]
 
   /**
-   * 
+   *
    * @param node adds a child to the directory
    */
   addChild(node: Node): void
@@ -114,6 +117,13 @@ export type IDirNode = NavNode & {
    * Only the navigable children, i.e. those that should be in the UI
    */
   navChildren(): NavNode[]
+
+  /**
+   * Merge the other node into this node, returning a new node
+   * @param other node to merge
+   * throws an error if the nodes are not mergeable
+   */
+  merge(other: IDirNode): void
 }
 
 /**
@@ -177,6 +187,13 @@ export type IDocNode = NavNode & {
    * @returns the list of parents up the root of the tree
    */
   parents: () => IDirNode[]
+
+  /**
+   * Merge the other node into this node, returning a new node
+   * @param other node to merge
+   * throws an error if the nodes are not mergeable
+   */
+  merge(other: IDocNode): void
 }
 
 export type ReactShape = Readonly<{
@@ -269,6 +286,13 @@ export type IMediaNode = Node & {
    * @returns the parent directory of the document
    */
   parents: () => IDirNode[]
+
+  /**
+   * Merge the other node into this node, returning a new node
+   * @param other node to merge
+   * throws an error if the nodes are not mergeable
+   */
+  merge(other: IMediaNode): void
 }
 
 export type OutLinkType =
@@ -312,12 +336,25 @@ export type DocProvider = {
 
   assembleTree?: (source: IDocSource, rootChildren: Node[]) => Promise<IDocTree>
 
+  /**
+   *
+   * @returns the default extractors for the provider
+   */
   defaultExtractors: () => IExtractor[]
+  /**
+   *
+   * @returns the default validators for the provider
+   */
   defaultValidators: () => IValidator[]
+  /**
+   *
+   * @returns the default enrichments for the provider
+   */
   defaultEnrichments: () => IEnrichment[]
 }
 
 export type IDocSource = {
+  readonly sourceName: string
   readonly config: SourceConfig
   readonly sourceRoot: string
   readonly provider: DocProvider
@@ -327,6 +364,9 @@ export type IDocSource = {
   defaultExtractors: () => IExtractor[]
   defaultValidators: () => IValidator[]
   defaultEnrichments: () => IEnrichment[]
+  readFileRaw(relPath: string): Promise<ArrayBuffer>
+  readFileStream(relPath: string): Promise<Readable>
+  readFileLinesStream(relPath: string): Promise<Interface>
 }
 
 // Type guard for IDirNode
@@ -373,7 +413,6 @@ export type IDocRepo = {
    * @param version an optional version
    */
   docByPath(path: string): Promise<IDocNode[]>
-
 
   /**
    * Return one or more documents by the URL

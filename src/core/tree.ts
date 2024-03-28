@@ -3,7 +3,7 @@ import { IDirNode, IDocSource, IDocTree, IMediaNode, NavNode, Node, isDirNode, i
 
 
 export abstract class AbstractBaseTree implements IDocTree {
-  constructor(public source: IDocSource, public children: Node[], public version: string = '') {
+  constructor(public source: IDocSource, public children: Node[]) {
   }
   navChildren(): NavNode[] {
     return this.children.flatMap((n) => {
@@ -35,6 +35,14 @@ export abstract class AbstractBaseTree implements IDocTree {
     return {
       type: 'tree',
       children: this.children.map((c) => c.asJSON())
+    }
+  }
+
+  findNodeByRelPath(relPath: string): Node | undefined {
+    for (const node of this.walkBfs()) {
+      if (node.relPath === relPath) {
+        return node
+      }
     }
   }
 }

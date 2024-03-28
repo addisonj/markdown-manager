@@ -67,6 +67,7 @@ export class MarkdocDocNode
   async renderReact(react: ReactShape, opts: ReactOptions): Promise<ReactNode> {
     const config = await this.provider.markdownConfig()
     const tree = transform(this.ast(), config)
+    console.log('tree', tree)
     return renderers.react(tree, react, opts)
   }
   asMarkdown(): Promise<string> {
@@ -102,6 +103,7 @@ export class MarkdocDocNode
 }
 
 export const DefaultMarkdocOptions: Required<MarkdocOptions> = {
+  type: 'markdoc',
   async buildSchema() {
     return {} as MDConfig
   },
@@ -110,19 +112,21 @@ export const DefaultMarkdocOptions: Required<MarkdocOptions> = {
 }
 export class MarkdocFileProvider implements DocProvider {
   private source: IDocSource | undefined
-  private providerConfig: Required<MarkdocOptions>
   private mdConfig: MDConfig
   private partialCache: Record<string, MDNode> | undefined
   private logger: LoggingApi
+  /**
+   * 
+   * @param sourceConfig the full source config
+   * @param markdocConfig the "resolved" markdoc config if any
+   * @param markdocOptions our mini options for markdoc
+   */
   private constructor(
     public sourceConfig: SourceConfig,
-    public markdocConfig: MDConfig
+    public markdocConfig: MDConfig,
+    private providerConfig: Required<MarkdocOptions>
   ) {
     this.logger = getLogger().child({ module: 'markdoc-file' })
-    this.providerConfig = {
-      ...DefaultMarkdocOptions,
-      ...sourceConfig.markdownOptions,
-    }
     this.mdConfig = markdocConfig
   }
   defaultExtractors(): IExtractor[] {
@@ -223,6 +227,14 @@ export class MarkdocFileProvider implements DocProvider {
       buildSchemaFunc = config.markdownOptions.buildSchema
     }
     const resolvedConfig = await buildSchemaFunc()
-    return new MarkdocFileProvider(config, resolvedConfig)
+    const markdownOptions = config.markdownOptions
+    let markdocOpts: Required<MarkdocOptions> = DefaultMarkdocOptions
+    if (markdownOptions && isMarkdocOptions(markdownOptions)) {
+      markdocOpts = {
+        ...DefaultMarkdocOptions,
+        ...markdownOptions,
+      }
+    }
+    return new MarkdocFileProvider(config, resolvedConfig, markdocOpts)
   }
 }

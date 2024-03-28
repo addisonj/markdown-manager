@@ -1,11 +1,11 @@
-import {IDocRepo, PathDocId} from './types'
+import {IDocRepo} from './types'
 
-export type Extraction<T = any, N = any> = {
+export type Extraction<GlobalData = any, NodeData = any> = {
   extractorName: string
   // if docId is present, it means the data is associated with a specific doc
   // if it is null, then the data is "global" for all documents
-  globalData?: T
-  docData?: { [docId: string]: N }
+  globalData?: GlobalData
+  docData?: { [docId: string]: NodeData }
 }
 
 export type IExtractor<T = any, N = any> = {

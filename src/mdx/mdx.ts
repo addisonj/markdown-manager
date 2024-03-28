@@ -1,22 +1,29 @@
-import admonitionPlgunin from '@docusaurus/mdx-loader/lib/remark/admonitions'
+import admonitionPlugin from '@docusaurus/mdx-loader/lib/remark/admonitions'
 import { evaluate } from '@mdx-js/mdx'
 import type { ReactNode } from 'react'
 import directivePlugin from 'remark-directive'
+import remarkGfm from 'remark-gfm'
 import {
   AbstractFileDocNode,
   BaseFileSource,
   DocProvider,
   IDirNode,
   IDocSource,
+  IDocTree,
   IExtractor,
   ILoadedDocNode,
   IValidator,
+  MdxOptions,
+  Node,
   OutLink,
   ReactOptions,
   ReactShape,
   SourceConfig,
+  isMdxOptions,
 } from '../core'
 import { IEnrichment } from '../core/enrichment'
+import frontmatterPlugin from 'remark-frontmatter'
+import { EvaluateOptions } from '@mdx-js/mdx/lib/util/resolve-evaluate-options'
 
 export class MdxDocNode extends AbstractFileDocNode implements ILoadedDocNode {
   providerName: string = 'mdx-file'
@@ -30,6 +37,7 @@ export class MdxDocNode extends AbstractFileDocNode implements ILoadedDocNode {
     return this._ast
   }
   constructor(
+    private mdxOptions: Required<MdxOptions>,
     source: BaseFileSource,
     relPath: string,
     index: number,
@@ -39,12 +47,20 @@ export class MdxDocNode extends AbstractFileDocNode implements ILoadedDocNode {
     super(source, relPath, index, frontmatter, parent)
   }
   async renderReact(react: ReactShape, opts: ReactOptions): Promise<ReactNode> {
-    const mdx = await evaluate(this.ast(), {
+    const {baseUrl, ...other} = this.mdxOptions
+    const format = this.relPath.endsWith('.mdx') ? 'mdx' : 'md'
+    const allOptions: EvaluateOptions = {
+      ...other,
+      format,
       Fragment: react.Fragment,
       jsx: react.createElement,
       jsxs: react.createElement,
-      remarkPlugins: [directivePlugin, admonitionPlgunin],
-    })
+      useMDXComponents: () => opts.components || {},
+    }
+    if (baseUrl) {
+      allOptions.baseUrl = baseUrl
+    }
+    const mdx = await evaluate(this.ast(), allOptions)
     return mdx.default(opts)
   }
   asMarkdown(): Promise<string> {
@@ -60,7 +76,7 @@ export class MdxDocNode extends AbstractFileDocNode implements ILoadedDocNode {
     this._ast = decoded
     // TODO figure out how to extract links!
     this.linkCache = []
-    return this 
+    return this
   }
   links(): OutLink[] {
     if (!this.linkCache) {
@@ -75,9 +91,27 @@ export class MdxDocNode extends AbstractFileDocNode implements ILoadedDocNode {
     return this.linkCache.filter((l) => l.type !== 'external')
   }
 }
+export const DefaultMdxOptions: Required<MdxOptions> = {
+  type: 'mdx',
+  baseUrl: '',
+  docusaurusCompatible: false,
+  remarkPlugins: [frontmatterPlugin],
+  rehypePlugins: [],
+  recmaPlugins: [],
+  customizeMDXConfig: function (config: EvaluateOptions): EvaluateOptions {
+    return config
+  },
+}
+
+export const DocusaurusOptions: Required<Pick<MdxOptions, 'remarkPlugins'>> = {
+  remarkPlugins: [directivePlugin, admonitionPlugin.default, remarkGfm],
+}
 
 export class MdxFileProvider implements DocProvider {
-  constructor() {}
+  constructor(private mdxOptions: Required<MdxOptions>) {}
+  assembleTree?:
+    | ((source: IDocSource, rootChildren: Node[]) => Promise<IDocTree>)
+    | undefined
   async buildDocNode(
     source: IDocSource,
     fullPath: string,
@@ -89,13 +123,51 @@ export class MdxFileProvider implements DocProvider {
     }
     const castSource = source as BaseFileSource
     const frontmatter = await castSource.extractMarkdownMetadata(fullPath)
-    const relPath = castSource.ensureRelPath(fullPath) 
+    const relPath = castSource.ensureRelPath(fullPath)
     return Promise.resolve(
-      new MdxDocNode(castSource, relPath, index, frontmatter, parent)
+      new MdxDocNode(
+        this.mdxOptions,
+        castSource,
+        relPath,
+        index,
+        frontmatter,
+        parent
+      )
     )
   }
   static async buildProvider(config: SourceConfig): Promise<DocProvider> {
-    return new MdxFileProvider()
+    const markdownOptions = config.markdownOptions
+    let markdocOpts: Required<MdxOptions> = DefaultMdxOptions
+    if (markdownOptions && isMdxOptions(markdownOptions)) {
+      const { recmaPlugins, remarkPlugins, rehypePlugins, ...restOpts } =
+        markdocOpts
+      const {
+        recmaPlugins: addRecmaPlugins,
+        remarkPlugins: addRemarkPlugins,
+        rehypePlugins: addRehypePlugins,
+        ...addRestOpts
+      } = markdownOptions
+      if (markdownOptions.docusaurusCompatible) {
+        remarkPlugins.push(...DocusaurusOptions.remarkPlugins)
+      }
+      if (addRemarkPlugins) {
+        remarkPlugins.push(...addRemarkPlugins)
+      }
+      if (addRehypePlugins) {
+        rehypePlugins.push(...addRehypePlugins)
+      }
+      if (addRecmaPlugins) {
+        recmaPlugins.push(...addRecmaPlugins)
+      }
+      markdocOpts = {
+        recmaPlugins,
+        remarkPlugins,
+        rehypePlugins,
+        ...restOpts,
+        ...addRestOpts,
+      }
+    }
+    return new MdxFileProvider(markdocOpts)
   }
   defaultExtractors(): IExtractor[] {
     return []

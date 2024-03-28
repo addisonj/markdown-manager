@@ -1,9 +1,18 @@
 import { Config } from '@markdoc/markdoc'
 import { IExtractor } from './extractor'
 import { LoggingConfig } from './logging'
-import { DocFileType, DocProvider, IDirNode, IDocNode, IDocSource, IMediaNode } from './types'
+import {
+  DocFileType,
+  DocProvider,
+  IDirNode,
+  IDocNode,
+  IDocSource,
+  IMediaNode,
+} from './types'
 import { IValidator } from './validator'
 import { IEnrichment } from './enrichment'
+import type { EvaluateOptions } from '@mdx-js/mdx'
+import type { PluggableList } from 'unified'
 
 export type SourceTypes = 'files' | 'git' | (() => IDocSource)
 
@@ -14,7 +23,9 @@ export type MarkdownFlavors =
   | (() => () => DocProvider)
 
 export type SourceOptions = {
-  filePatterns?: string[]
+  // the markdown extensions to look for
+  markdownExtensions?: string[]
+  extraFilePatterns?: string[]
   extensionMapping?: Record<string, DocFileType>
   indexDocName?: string
   parseFrontMatter?: (content: string) => Record<string, any>
@@ -29,15 +40,39 @@ export type FileSourceOptions = {
   Record<string, any>
 
 export type MarkdocOptions = {
+  type: 'markdoc'
   buildSchema?: () => Promise<Config>
   partials?: Record<string, string>
   partialHints?: string[]
-} & Record<string, any>
+}
+
+export type MdxOptions = {
+  type: 'mdx'
+  // the base url to use for resolving components
+  baseUrl?: string
+  // enables plugins that will make the mdx files compatible with docusaurus
+  // this includes, frontmatter, directives, admonitions, and gfm
+  docusaurusCompatible?: boolean
+  // custom remark plugins to use, note, default plugins are still included!
+  // use customizeMDXConfig if you want to *remove* plugins
+  remarkPlugins?: PluggableList
+  rehypePlugins?: PluggableList
+  recmaPlugins?: PluggableList
+  // custom config for the mdx evaluation,
+  // passes the default config and expects an updated config
+  customizeMDXConfig?: (config: EvaluateOptions) => EvaluateOptions
+}
 
 export function isMarkdocOptions(
-  options: Record<string, any>
+  options: any
 ): options is MarkdocOptions {
-  return options.buildSchema !== undefined
+  return options && options.type === 'markdoc'
+}
+
+export function isMdxOptions(
+  options: any
+): options is MdxOptions {
+  return options && options.type === 'mdx'
 }
 
 export type SourceConfig = {
@@ -48,7 +83,7 @@ export type SourceConfig = {
   enableDefaultExtractors?: boolean
   enrichments?: EnrichmentConfig[]
   markdownFlavor: MarkdownFlavors
-  markdownOptions?: MarkdocOptions | Record<string, any>
+  markdownOptions?: MarkdocOptions | MdxOptions | Record<string, any>
 } & Record<string, any>
 
 export type ValidatorConfig =
@@ -72,7 +107,9 @@ export type EnrichmentConfig =
     }
   | (() => IEnrichment)
 
-export type UrlExtractorFunc = (doc: IDocNode | IDirNode | IMediaNode) => string | undefined
+export type UrlExtractorFunc = (
+  doc: IDocNode | IDirNode | IMediaNode
+) => string | undefined
 export type RepoConfig = {
   urlExtractor?: UrlExtractorFunc
   validators: ValidatorConfig[]
