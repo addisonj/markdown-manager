@@ -6,7 +6,8 @@ import type {
   LoggingApi,
 } from '../../core/index.js'
 import { parse as parseYaml } from 'yaml'
-import { validateCategoryMetadataFile } from '@docusaurus/plugin-content-docs/lib/sidebars/validation.js'
+// TODO we can't import this from the plugin, so we need to copy it here
+// import { validateCategoryMetadataFile } from '@docusaurus/plugin-content-docs/lib/sidebars/validation.js'
 import type { CategoryMetadataFile } from '@docusaurus/plugin-content-docs/lib/sidebars/types.js'
 
 export class DocusaususCategory implements IEnrichment {
@@ -27,7 +28,9 @@ export class DocusaususCategory implements IEnrichment {
     logger: LoggingApi
   ): CategoryMetadataFile | null {
     try {
-      validateCategoryMetadataFile(category)
+      // TODO actually do validation, we can't re-use docusaurus code here
+      // due to import issues so we just assume it is good for now
+      //validateCategoryMetadataFile(category)
       return category as CategoryMetadataFile
     } catch (ex: any) {
       logger.warn(`Error parsing ${categoryFile}: ${ex.message}`)
