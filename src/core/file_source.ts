@@ -34,6 +34,11 @@ export class BaseFileSource extends AbstractBaseSource {
     return createReadStream(this.ensureFullFilePath(relPath))
   }
 
+  async fileExists(relPath: string): Promise<boolean> {
+    const fullPath = this.ensureFullFilePath(relPath)
+    return fs.access(fullPath).then(() => true).catch(() => false)
+  }
+
   async listFiles(): Promise<string[]> {
     const mdPatterns = this.options.markdownExtensions.flatMap((ext) => [`*.${ext}`, `**/*.${ext}`])
     const allPatterns = mdPatterns.concat(this.options.extraFilePatterns)

@@ -252,6 +252,10 @@ export abstract class AbstractFileDocNode
     return path.normalize(this.source.extractUrl(this) || this.relPath)
   }
 
+  async rawContent(): Promise<string> {
+    return this.read()
+  }
+
   async read(): Promise<string> {
     const fullPath = this.physicalPath()
     const buffer = await this.source.readFileRaw(fullPath)

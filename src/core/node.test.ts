@@ -57,7 +57,6 @@ describe('Core Node functions', () => {
       expect(n.frontmatter).toEqual({})
       expect(n.indexDoc).toBe(false)
       // check methods are working
-      expect(await n.asMarkdown()).toBe('content')
       expect(await n.read()).toBe('content')
       expect(n.parents().map((p) => p.relPath)).toEqual(['t1', ''])
       expect(n.links()).toEqual([])

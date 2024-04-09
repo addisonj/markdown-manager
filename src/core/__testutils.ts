@@ -65,9 +65,6 @@ export class TestDocNode extends AbstractFileDocNode implements ILoadedDocNode {
     // render the markdown to html using
     return Promise.resolve(Markdoc.renderers.html(p))
   }
-  asMarkdown(): Promise<string> {
-    return Promise.resolve(this.content)
-  }
   get ast(): any {
     return this.content
   }

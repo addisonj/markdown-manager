@@ -5,6 +5,8 @@ import { Extraction, IExtractor } from './extractor'
 import { IValidator, ValidationError } from './validator'
 import type { Readable } from 'stream'
 import type { Interface } from 'readline/promises'
+import { DocIndex } from './types_doc_index'
+import { LoggingApi } from './logging'
 
 /**
  * Represents the root of the tree, with some convenience methods for interacting with the tree
@@ -191,9 +193,14 @@ export type IDocNode = NavNode & {
   /**
    * Merge the other node into this node, returning a new node
    * @param other node to merge
-   * throws an error if the nodes are not mergeable
+   * throws an error if the nodes are not mergeabl>e
    */
   merge(other: IDocNode): void
+
+  /**
+   * The raw content of the document
+   */
+  rawContent(): Promise<string>
 }
 
 export type ReactShape = Readonly<{
@@ -209,6 +216,7 @@ export type ILoadedDocNode = Omit<IDocNode, 'load'> & {
    * the parsed AST of the document
    */
   ast(): any
+
 
   /**
    *
@@ -244,9 +252,9 @@ export type ILoadedDocNode = Omit<IDocNode, 'load'> & {
   renderOther(...args: any[]): Promise<any>
 
   /**
-   * Returns the document as a string of *vanilla* markdown, with any special syntax removed
+   * Returns a basic JSON representation of the document for indexing
    */
-  asMarkdown(): Promise<string>
+  extractIndex(): Promise<DocIndex>
 }
 
 export type IRenderableDocNode = Pick<
@@ -297,7 +305,7 @@ export type IMediaNode = Node & {
 
 export type OutLinkType =
   | 'external' // A link to an external resource
-  | 'anchor' // A link to an anchor in the same document
+  | 'fragment' // A link to a fragment in the same document
   | 'id' // A link to a document by its id
   | 'absolute' // A link to an absolute path in the same site
   | 'relative' // A link to a relative path in the same site
@@ -307,8 +315,20 @@ export type OutLinkType =
  */
 export type OutLink = {
   readonly type: OutLinkType
-  readonly rawValue: string
+  // the original value of link (the raw URI)
+  readonly rawUrl: string
+  // the link to navigate to, may not be known till later
+  readonly navUrl?: string
+  // the title of the link
   readonly title: string
+  // the path portion
+  readonly path?: string
+  // the fragment of the link (after the #)
+  readonly fragment?: string
+  // any query parameters
+  readonly query: Record<string, string>
+  // any other metadata specific to providers
+  readonly metadata: Record<string, any>
 }
 
 export type DocFragment = {
@@ -359,11 +379,13 @@ export type IDocSource = {
   readonly sourceRoot: string
   readonly provider: DocProvider
   readonly sourceType: string
+  readonly logger: LoggingApi
   enrichments: IEnrichment[]
   buildTree: () => Promise<IDocTree>
   defaultExtractors: () => IExtractor[]
   defaultValidators: () => IValidator[]
   defaultEnrichments: () => IEnrichment[]
+  fileExists(relPath: string): Promise<boolean>
   readFileRaw(relPath: string): Promise<ArrayBuffer>
   readFileStream(relPath: string): Promise<Readable>
   readFileLinesStream(relPath: string): Promise<Interface>

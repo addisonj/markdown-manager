@@ -167,7 +167,7 @@ export abstract class AbstractBaseSource implements IDocSource {
   abstract sourceType: string
   provider: DocProvider
   options: AllSourceOptions
-  private logger: LoggingApi
+  logger: LoggingApi
   public currentTree?: IDocTree
 
   private buildRawTree(rawFiles: string[]): RawTree {
@@ -478,6 +478,8 @@ export abstract class AbstractBaseSource implements IDocSource {
   abstract readFileRaw(relPath: string): Promise<ArrayBuffer>
 
   abstract readFileStream(relPath: string): Promise<Readable>
+
+  abstract fileExists(relPath: string): Promise<boolean>
 
   async readFileLinesStream(relPath: string): Promise<Interface> {
     const stream = await this.readFileStream(relPath)

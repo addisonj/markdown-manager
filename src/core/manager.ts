@@ -55,7 +55,7 @@ export class Manager {
     return repo
   }
   registeredRepos(): string[] {
-    return Object.keys(this.repoCache)
+    return Object.keys(this.config.repos)
   }
   private async resolveSource(
     name: string,

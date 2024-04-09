@@ -10,12 +10,11 @@ import {
   IDocSource,
   IDocTree,
   Node,
-  isDirNode,
 } from './types'
 import { IValidator } from './validator'
-import { dir } from 'console'
 import { Interface } from 'readline/promises'
 import { Readable } from 'stream'
+import { LoggingApi, getLogger } from './logging'
 
 /**
  * A noop provider as doc nodes have already been built
@@ -84,9 +83,15 @@ export class MultiSource implements IDocSource {
   sourceName: string = 'multi'
   provider: DocProvider = new MultiProvider()
   enrichments: IEnrichment[] = []
+  logger: LoggingApi
   // satisfy the interface, but it isn't really used by us!
   public config: SourceConfig = {} as SourceConfig
-  constructor(public trees: IDocTree[]) {}
+  constructor(public trees: IDocTree[]) {
+    this.logger = getLogger().child({
+      source: this.sourceName,
+      root: this.sourceRoot,
+    })
+  }
   private sources(): IDocSource[] {
     return this.trees.map((t) => t.source)
   }
@@ -150,5 +155,12 @@ export class MultiSource implements IDocSource {
       throw new Error(`Could not find document with path ${relPath}`)
     }
     return node.source.readFileLinesStream(relPath)
+  }
+  fileExists(relPath: string): Promise<boolean> {
+    const node = this.findDoc(relPath)
+    if (!node) {
+      throw new Error(`Could not find document with path ${relPath}`)
+    }
+    return node.source.fileExists(relPath)
   }
 }

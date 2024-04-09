@@ -1,15 +1,16 @@
 import {
   Config as MDConfig,
-  Location as MDLocation,
   Node as MDNode,
+  RenderableTreeNodes,
   parse,
   renderers,
-  transform,
+  transform
 } from '@markdoc/markdoc'
 import type { ReactNode } from 'react'
 import {
   AbstractFileDocNode,
   BaseFileSource,
+  DocIndex,
   DocProvider,
   IDirNode,
   IDocSource,
@@ -19,7 +20,6 @@ import {
   LoggingApi,
   MarkdocOptions,
   OutLink,
-  OutLinkType,
   ReactOptions,
   ReactShape,
   SourceConfig,
@@ -27,24 +27,14 @@ import {
   isMarkdocOptions,
 } from '../core'
 import { IEnrichment } from '../core/enrichment'
-import { extractLinks } from './helpers'
-
-// TODO figure this out...
-export class MarkdocLink implements OutLink {
-  constructor(
-    public type: OutLinkType,
-    public rawValue: string,
-    public title: string,
-    public location: MDLocation | undefined
-  ) {}
-}
+import { extractIndex, extractLinks } from './helpers'
 
 export class MarkdocDocNode
   extends AbstractFileDocNode
   implements ILoadedDocNode
 {
   private _ast: MDNode | undefined
-  private linkCache: MarkdocLink[] | undefined
+  private linkCache: OutLink[] | undefined
   renderTarget: 'html' | 'react' | 'other' = 'react'
   providerName: string = 'markdoc-file'
   ast(): MDNode {
@@ -64,18 +54,13 @@ export class MarkdocDocNode
   ) {
     super(source, relPath, index, frontmatter, parent)
   }
-  async renderReact(react: ReactShape, opts: ReactOptions): Promise<ReactNode> {
+  async buildRenderTree(): Promise<RenderableTreeNodes> {
     const config = await this.provider.markdownConfig()
-    const tree = transform(this.ast(), config)
-    console.log('tree', tree)
-    return renderers.react(tree, react, opts)
+    return transform(this.ast(), config)
   }
-  asMarkdown(): Promise<string> {
-    // traverse the AST and convert it back to markdown
-    // where we skip any tags that are not native markdown
-    // but we do include the content inside the tags
-    // TODO finish this later
-    throw new Error('Method not implemented.')
+  async renderReact(react: ReactShape, opts: ReactOptions): Promise<ReactNode> {
+    const renderableTree = await this.buildRenderTree()
+    return renderers.react(renderableTree, react, opts)
   }
   async load(): Promise<MarkdocDocNode> {
     if (this._ast) {
@@ -88,13 +73,16 @@ export class MarkdocDocNode
     this.linkCache = extractLinks(this.physicalPath(), this._ast)
     return this
   }
-  links(): MarkdocLink[] {
+  async extractIndex(): Promise<DocIndex> {
+    return await extractIndex(this)
+  }
+  links(): OutLink[] {
     if (!this.linkCache) {
       throw new Error('AST not parsed')
     }
     return this.linkCache
   }
-  localLinks(): MarkdocLink[] {
+  localLinks(): OutLink[] {
     if (!this.linkCache) {
       throw new Error('AST not parsed')
     }
