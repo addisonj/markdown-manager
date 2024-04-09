@@ -1,7 +1,7 @@
 {
   "name": "markdown-manager",
   "type": "module",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Manage collections of markdown documents with support for file-based structure, snippets, and more",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
