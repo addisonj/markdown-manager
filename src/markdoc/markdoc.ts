@@ -3,7 +3,7 @@ import type {
   Node as MDNode,
   RenderableTreeNodes,
 } from '@markdoc/markdoc'
-import { parse, renderers, transform } from '@markdoc/markdoc'
+import markdoc from '@markdoc/markdoc'
 import type { ReactNode } from 'react'
 import type {
   DocIndex,
@@ -28,6 +28,7 @@ import {
   isMarkdocOptions,
 } from '../core/index.js'
 import { extractIndex, extractLinks } from './helpers.js'
+const { parse, transform, renderers } = markdoc
 
 export class MarkdocDocNode
   extends AbstractFileDocNode
