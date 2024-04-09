@@ -1,4 +1,9 @@
-import { DocIndex, Extraction, IDocRepo, IExtractor } from '../../core'
+import type {
+  DocIndex,
+  Extraction,
+  IDocRepo,
+  IExtractor,
+} from '../../core/index.js'
 
 /**
  * This extractor is used to extract a search index from the tree structure of the documents by

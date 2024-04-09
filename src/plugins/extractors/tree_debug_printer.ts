@@ -1,4 +1,12 @@
-import { Extraction, IDirNode, IDocRepo, IDocTree, IExtractor, Node, isDirNode, isDocNode, isMediaNode } from "../../core"
+import type {
+  Extraction,
+  IDirNode,
+  IDocRepo,
+  IDocTree,
+  IExtractor,
+  Node,
+} from '../../core/index.js'
+import { isDirNode, isDocNode, isMediaNode } from '../../core/index.js'
 
 /**
  * This extractor is used to debug the tree structure of the documents by
@@ -52,5 +60,4 @@ Tree(${node.source.sourceName})
 ${this.printChildren(node.children).join('\n')}
 `
   }
-  
 }

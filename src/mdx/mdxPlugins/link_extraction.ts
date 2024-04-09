@@ -1,9 +1,9 @@
-import type { Transformer } from 'unified'
 import type { Link } from 'mdast'
-import {toString as astToString} from 'mdast-util-to-string'
-import { visit, CONTINUE } from 'unist-util-visit'
-import { OutLink } from '../../core'
-import { extractOutLink } from '../../core'
+import { toString as astToString } from 'mdast-util-to-string'
+import type { Transformer } from 'unified'
+import { CONTINUE, visit } from 'unist-util-visit'
+import type { OutLink } from '../../core/index.js'
+import { extractOutLink } from '../../core/index.js'
 
 /**
  * A remark plugin to extract the link heading found in Markdown files

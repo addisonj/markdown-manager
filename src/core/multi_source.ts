@@ -1,20 +1,21 @@
 import path from 'path'
-import { SourceConfig } from './config'
-import { IEnrichment } from './enrichment'
-import { IExtractor } from './extractor'
-import { AbstractBaseTree } from './tree'
-import {
+import { Interface } from 'readline/promises'
+import { Readable } from 'stream'
+import type { SourceConfig } from './config.js'
+import type { IEnrichment } from './enrichment.js'
+import type { IExtractor } from './extractor.js'
+import type { LoggingApi } from './logging.js'
+import { getLogger } from './logging.js'
+import { AbstractBaseTree } from './tree.js'
+import type {
   DocProvider,
   IDirNode,
   IDocNode,
   IDocSource,
   IDocTree,
   Node,
-} from './types'
-import { IValidator } from './validator'
-import { Interface } from 'readline/promises'
-import { Readable } from 'stream'
-import { LoggingApi, getLogger } from './logging'
+} from './types.js'
+import type { IValidator } from './validator.js'
 
 /**
  * A noop provider as doc nodes have already been built

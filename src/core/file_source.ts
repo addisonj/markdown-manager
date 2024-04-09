@@ -1,12 +1,10 @@
 import fg from 'fast-glob'
 import { createReadStream, promises as fs } from 'fs'
 import { Readable } from 'stream'
-import { SourceConfig, UrlExtractorFunc } from './config'
-import { FileDirNode, FileMediaNode } from './file_node'
-import {
-  AbstractBaseSource,
-} from './source'
-import { DocProvider, IDirNode, IMediaNode } from './types'
+import type { SourceConfig, UrlExtractorFunc } from './config.js'
+import { FileDirNode, FileMediaNode } from './file_node.js'
+import { AbstractBaseSource } from './source.js'
+import type { DocProvider, IDirNode, IMediaNode } from './types.js'
 
 export class BaseFileSource extends AbstractBaseSource {
   sourceType: string = 'file'
@@ -36,11 +34,17 @@ export class BaseFileSource extends AbstractBaseSource {
 
   async fileExists(relPath: string): Promise<boolean> {
     const fullPath = this.ensureFullFilePath(relPath)
-    return fs.access(fullPath).then(() => true).catch(() => false)
+    return fs
+      .access(fullPath)
+      .then(() => true)
+      .catch(() => false)
   }
 
   async listFiles(): Promise<string[]> {
-    const mdPatterns = this.options.markdownExtensions.flatMap((ext) => [`*.${ext}`, `**/*.${ext}`])
+    const mdPatterns = this.options.markdownExtensions.flatMap((ext) => [
+      `*.${ext}`,
+      `**/*.${ext}`,
+    ])
     const allPatterns = mdPatterns.concat(this.options.extraFilePatterns)
     return await fg(allPatterns, { cwd: this.sourceRoot })
   }

@@ -1,5 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest'
-import { OutLink } from './types'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   TestBaseFileSource,
   TestDocMock,
@@ -7,8 +6,9 @@ import {
   TestFileProvider,
   setupLogging,
 } from './__testutils'
-import { SourceConfig } from './config'
-import { defaultUrlExtractor } from './manager'
+import { SourceConfig } from './config.js'
+import { defaultUrlExtractor } from './manager.js'
+import { OutLink } from './types.js'
 
 describe('Core Node functions', () => {
   setupLogging()
@@ -21,7 +21,12 @@ describe('Core Node functions', () => {
       extraFilePatterns: ['**/*.md'],
     },
   }
-  const source = new TestBaseFileSource('nodetest', config, provider, defaultUrlExtractor)
+  const source = new TestBaseFileSource(
+    'nodetest',
+    config,
+    provider,
+    defaultUrlExtractor
+  )
 
   async function buildNode(
     name: string,

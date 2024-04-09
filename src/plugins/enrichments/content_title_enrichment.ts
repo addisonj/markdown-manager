@@ -1,8 +1,8 @@
-import { IDocNode, IEnrichment } from '../../core'
+import type { IDocNode, IEnrichment } from '../../core/index.js'
 
 /**
  * Extract the title from the first heading in the document and set it as the title of the document
- * 
+ *
  * Should *not* be used with MDX files, as the MDX loader will already extract the title
  */
 export class ContentTitleEnrichment implements IEnrichment {

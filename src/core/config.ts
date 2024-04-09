@@ -1,16 +1,16 @@
-import { Config } from '@markdoc/markdoc'
-import { IExtractor } from './extractor'
-import { LoggingConfig } from './logging'
-import {
+import type { Config } from '@markdoc/markdoc'
+import type { IExtractor } from './extractor.js'
+import type { LoggingConfig } from './logging.js'
+import type {
   DocFileType,
   DocProvider,
   IDirNode,
   IDocNode,
   IDocSource,
   IMediaNode,
-} from './types'
-import { IValidator } from './validator'
-import { IEnrichment } from './enrichment'
+} from './types.js'
+import type { IValidator } from './validator.js'
+import type { IEnrichment } from './enrichment.js'
 import type { EvaluateOptions } from '@mdx-js/mdx'
 import type { PluggableList } from 'unified'
 
@@ -63,15 +63,11 @@ export type MdxOptions = {
   customizeMDXConfig?: (config: EvaluateOptions) => EvaluateOptions
 }
 
-export function isMarkdocOptions(
-  options: any
-): options is MarkdocOptions {
+export function isMarkdocOptions(options: any): options is MarkdocOptions {
   return options && options.type === 'markdoc'
 }
 
-export function isMdxOptions(
-  options: any
-): options is MdxOptions {
+export function isMdxOptions(options: any): options is MdxOptions {
   return options && options.type === 'mdx'
 }
 

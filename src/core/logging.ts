@@ -66,7 +66,7 @@ export const consoleLogger: LoggingApi & {
       silent: () => {},
     }
     for (const key in levelMap) {
-      // this is safe because we know that the keys are the log levels 
+      // this is safe because we know that the keys are the log levels
       const l = key as LogLevels
       if (levelMap[l] >= levelMap[level]) {
         // silent is a special case because we don't want to call console.log, it is a no-op

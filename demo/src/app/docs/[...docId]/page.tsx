@@ -11,7 +11,11 @@ export async function generateStaticParams() {
   return paths
 }
 
-export default async function Page({ params }: { params: { docId: string[] } }) {
+export default async function Page({
+  params,
+}: {
+  params: { docId: string[] }
+}) {
   const repo = await getDemoRepo()
   console.log('pthe path', params.docId)
   const np = params.docId.join('/')
@@ -26,7 +30,5 @@ export default async function Page({ params }: { params: { docId: string[] } }) 
 
   const component = await readDoc.renderReact(React as ReactShape, {})
 
-  return <div>
-    {component}
-  </div>
+  return <div>{component}</div>
 }

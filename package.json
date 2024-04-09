@@ -6,6 +6,8 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "watch": "tsc -w",
     "prepare": "tsc",
     "build": "tsc",

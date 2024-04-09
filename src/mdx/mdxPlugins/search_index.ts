@@ -1,12 +1,12 @@
-import {
+import type {
   DocSection,
   HeaderSection,
   StandaloneSection,
-} from '../../core'
-import { MdxDocNode } from '../mdx'
+} from '../../core/index.js'
+import { MdxDocNode } from '../mdx.js'
 import type { Transformer } from 'unified'
-import {toString as astToString} from 'mdast-util-to-string'
-import {visitParents, CONTINUE} from 'unist-util-visit-parents'
+import { toString as astToString } from 'mdast-util-to-string'
+import { visitParents, CONTINUE } from 'unist-util-visit-parents'
 import { is } from 'unist-util-is'
 import type { Literal, Heading, Image, Node } from 'mdast'
 
@@ -53,7 +53,7 @@ export function SearchIndexPlugin(): Transformer {
         // otherwise, add the text to the content
         if (!ancestors.find((ancestor) => is(ancestor, 'heading'))) {
           addContent(text.value)
-        } 
+        }
       } else if (is(node, 'image')) {
         // add the alt and title to the content
         const imgNode = node as Image
@@ -63,7 +63,7 @@ export function SearchIndexPlugin(): Transformer {
         if (imgNode.alt) {
           addContent(imgNode.alt)
         }
-      } else if (is(node, {value: 'string'})) {
+      } else if (is(node, { value: 'string' })) {
         const valNode = node as Literal
         addContent(valNode.value)
       }

@@ -1,12 +1,11 @@
-import {
+import path from 'path'
+import type {
   IDirNode,
   IDocNode,
   IEnrichment,
   NavNode,
-  isDirNode,
-  isDocNode,
-} from '../../core'
-import path from 'path'
+} from '../../core/index.js'
+import { isDirNode, isDocNode } from '../../core/index.js'
 const DefaultTitleIndexVersionRegex =
   /^(?<idx>\d+)?\s*-?\s*(?<version>v\d+(\.\d+)?(\.\d+)?)?\s*-?\s*(?<name>.*)/
 export type ExtractedInfo = {
@@ -22,9 +21,7 @@ export class TitleIndexVersionEnrichment implements IEnrichment {
   constructor(
     private titleIndexVersionRegex: RegExp = DefaultTitleIndexVersionRegex
   ) {}
-  extractTitleVersionIndex(
-    fullPath: string,
-  ): ExtractedInfo | undefined {
+  extractTitleVersionIndex(fullPath: string): ExtractedInfo | undefined {
     const parsed = path.parse(fullPath)
     const match = parsed.name.match(this.titleIndexVersionRegex)
     if (!match) {
@@ -36,9 +33,7 @@ export class TitleIndexVersionEnrichment implements IEnrichment {
       index: match.groups?.idx ? parseInt(match.groups?.idx) : undefined,
     }
   }
-  enrichBase<T extends NavNode>(
-    node: T 
-  ): T {
+  enrichBase<T extends NavNode>(node: T): T {
     const info = this.extractTitleVersionIndex(node.relPath)
     if (info) {
       node.navTitle = info.title
@@ -51,9 +46,7 @@ export class TitleIndexVersionEnrichment implements IEnrichment {
     }
     return node
   }
-  enrichDoc(
-    node: IDocNode
-  ): Promise<IDocNode> {
+  enrichDoc(node: IDocNode): Promise<IDocNode> {
     if (isDocNode(node)) {
       return Promise.resolve(this.enrichBase<IDocNode>(node))
     }

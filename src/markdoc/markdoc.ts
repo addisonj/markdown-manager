@@ -1,19 +1,16 @@
-import {
+import type {
   Config as MDConfig,
   Node as MDNode,
   RenderableTreeNodes,
-  parse,
-  renderers,
-  transform
 } from '@markdoc/markdoc'
+import { parse, renderers, transform } from '@markdoc/markdoc'
 import type { ReactNode } from 'react'
-import {
-  AbstractFileDocNode,
-  BaseFileSource,
+import type {
   DocIndex,
   DocProvider,
   IDirNode,
   IDocSource,
+  IEnrichment,
   IExtractor,
   ILoadedDocNode,
   IValidator,
@@ -23,11 +20,14 @@ import {
   ReactOptions,
   ReactShape,
   SourceConfig,
+} from '../core/index.js'
+import {
+  AbstractFileDocNode,
+  BaseFileSource,
   getLogger,
   isMarkdocOptions,
-} from '../core'
-import { IEnrichment } from '../core/enrichment'
-import { extractIndex, extractLinks } from './helpers'
+} from '../core/index.js'
+import { extractIndex, extractLinks } from './helpers.js'
 
 export class MarkdocDocNode
   extends AbstractFileDocNode
@@ -104,7 +104,7 @@ export class MarkdocFileProvider implements DocProvider {
   private partialCache: Record<string, MDNode> | undefined
   private logger: LoggingApi
   /**
-   * 
+   *
    * @param sourceConfig the full source config
    * @param markdocConfig the "resolved" markdoc config if any
    * @param markdocOptions our mini options for markdoc

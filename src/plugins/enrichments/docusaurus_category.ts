@@ -1,8 +1,13 @@
 import path from 'path'
-import { IDirNode, IDocSource, IEnrichment, LoggingApi } from '../../core'
+import type {
+  IDirNode,
+  IDocSource,
+  IEnrichment,
+  LoggingApi,
+} from '../../core/index.js'
 import { parse as parseYaml } from 'yaml'
-import { validateCategoryMetadataFile } from '@docusaurus/plugin-content-docs/src/sidebars/validation'
-import { CategoryMetadataFile } from '@docusaurus/plugin-content-docs/src/sidebars/types'
+import { validateCategoryMetadataFile } from '@docusaurus/plugin-content-docs/lib/sidebars/validation.js'
+import type { CategoryMetadataFile } from '@docusaurus/plugin-content-docs/lib/sidebars/types.js'
 
 export class DocusaususCategory implements IEnrichment {
   _logger: LoggingApi | null = null

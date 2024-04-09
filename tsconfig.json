@@ -7,9 +7,20 @@
     "allowSyntheticDefaultImports": true,
     "declaration": true,
     "declarationMap": true,
-    "moduleResolution": "node",
-    "outDir": "dist"
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "verbatimModuleSyntax": true,
+    "outDir": "dist",
+    "skipLibCheck": true
   },
   "include": ["**/*.ts", "**/*.d.ts"],
-  "exclude": ["dist", "spec", "**/*.test.ts", "**/__*.ts", "vitest.config.ts", "demo"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "spec",
+    "**/*.test.ts",
+    "**/__*.ts",
+    "vitest.config.ts",
+    "demo"
+  ]
 }

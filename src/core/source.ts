@@ -1,7 +1,7 @@
 import path from 'path'
 import { parse } from 'yaml'
-import { BaseDocTree } from './tree'
-import {
+import { BaseDocTree } from './tree.js'
+import type {
   DocFileType,
   DocProvider,
   IDirNode,
@@ -11,22 +11,23 @@ import {
   IMediaNode,
   MediaType,
   Node,
-} from './types'
+} from './types.js'
 
+import fs from 'fs'
+import type { Interface } from 'readline/promises'
+import { createInterface } from 'readline/promises'
 import { Readable } from 'stream'
-import {
+import type {
   EnrichmentConfig,
   SourceConfig,
   SourceOptions,
   UrlExtractorFunc,
-} from './config'
-import { IEnrichment } from './enrichment'
-import { IExtractor } from './extractor'
-import { LoggingApi, getLogger } from './logging'
-import { IValidator } from './validator'
-import fs from 'fs'
-import { createInterface } from 'readline/promises'
-import type { Interface } from 'readline/promises'
+} from './config.js'
+import type { IEnrichment } from './enrichment.js'
+import type { IExtractor } from './extractor.js'
+import type { LoggingApi } from './logging.js'
+import { getLogger } from './logging.js'
+import type { IValidator } from './validator.js'
 /**
  * A list of file patterns for the most media files
  */

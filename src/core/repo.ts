@@ -1,23 +1,15 @@
-import { Extraction, IExtractor } from './extractor'
-import { MultiSource } from './multi_source'
-import {
-  IDocNode,
-  IDocRepo,
-  IDocTree,
-  IMediaNode,
-  Node,
-  isDocNode,
-  isMediaNode,
-} from './types'
-import { IValidator, ValidationError } from './validator'
+import type { Extraction, IExtractor } from './extractor.js'
+import { MultiSource } from './multi_source.js'
+import type { IDocNode, IDocRepo, IDocTree, IMediaNode, Node } from './types.js'
+import { isDocNode, isMediaNode } from './types.js'
+import type { IValidator, ValidationError } from './validator.js'
 
 export class DocRepo implements IDocRepo {
   private source: MultiSource
   private mergedTree: IDocTree
   private docCache: Record<string, IDocNode[]> = {}
   private docByUrlCache: Record<string, IDocNode[]> = {}
-  private mediaCache: Record<string, IMediaNode[]> =
-    {}
+  private mediaCache: Record<string, IMediaNode[]> = {}
   constructor(
     public repoName: string,
     private docTrees: IDocTree[],

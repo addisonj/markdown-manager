@@ -10,7 +10,9 @@ export type DocIndex = {
 
 export type DocSection = HeaderSection | StandaloneSection
 
-export function isHeaderSection(section: DocSection | null): section is HeaderSection {
+export function isHeaderSection(
+  section: DocSection | null
+): section is HeaderSection {
   if (!section) return false
   return (section as HeaderSection).header !== undefined
 }

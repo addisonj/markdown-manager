@@ -1,12 +1,12 @@
 import type { Fragment, ReactNode, createElement } from 'react'
-import { SourceConfig } from './config'
-import { IEnrichment } from './enrichment'
-import { Extraction, IExtractor } from './extractor'
-import { IValidator, ValidationError } from './validator'
+import type { SourceConfig } from './config.js'
+import type { IEnrichment } from './enrichment.js'
+import type { Extraction, IExtractor } from './extractor.js'
+import type { IValidator, ValidationError } from './validator.js'
 import type { Readable } from 'stream'
 import type { Interface } from 'readline/promises'
-import { DocIndex } from './types_doc_index'
-import { LoggingApi } from './logging'
+import type { DocIndex } from './types_doc_index.js'
+import type { LoggingApi } from './logging.js'
 
 /**
  * Represents the root of the tree, with some convenience methods for interacting with the tree
@@ -216,7 +216,6 @@ export type ILoadedDocNode = Omit<IDocNode, 'load'> & {
    * the parsed AST of the document
    */
   ast(): any
-
 
   /**
    *

@@ -1,4 +1,4 @@
-import { IDirNode, IDocNode, ILoadedDocNode, IMediaNode } from './types'
+import type { IDirNode, IDocNode, IMediaNode } from './types.js'
 
 export type IEnrichment = {
   /**
@@ -18,14 +18,12 @@ export type IEnrichment = {
    * @param node the node to enrich
    * @returns the updated node, or null/undefined to remove it
    */
-  enrichDoc?: (
-    node: IDocNode
-  ) => Promise<IDocNode | undefined | null>
+  enrichDoc?: (node: IDocNode) => Promise<IDocNode | undefined | null>
   /**
    * Enrich a directory node
    * @param node the node to enrich
    * @returns the updated node, or null/undefined to remove it. If removed, all children directories will be ignored
-   * 
+   *
    */
   enrichDir?: (node: IDirNode) => Promise<IDirNode | undefined | null>
 

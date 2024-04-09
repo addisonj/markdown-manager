@@ -1,4 +1,4 @@
-import { OutLink } from "./types"
+import type { OutLink } from './types.js'
 
 function convertSearchParams(params: URLSearchParams): Record<string, string> {
   const c: Record<string, string> = {}

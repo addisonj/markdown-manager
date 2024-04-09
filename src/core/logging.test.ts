@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { LoggingApi, clearLogger, getLogger } from './logging'
+import type { LoggingApi } from './logging.js'
+import { clearLogger, getLogger } from './logging.js'
 
 describe('getLogger', () => {
   beforeEach(() => {
@@ -56,7 +57,7 @@ describe('getLogger', () => {
     function logFn() {
       loggerCalled = true
     }
-    const customLogger: LoggingApi = { 
+    const customLogger: LoggingApi = {
       level: 'info',
       trace: logFn,
       debug: logFn,
@@ -65,8 +66,8 @@ describe('getLogger', () => {
       error: logFn,
       fatal: logFn,
       silent: logFn,
-      child: () => customLogger
-     }
+      child: () => customLogger,
+    }
     const logger = getLogger({ logging: customLogger })
     logger.info('test')
     expect(logger).toBeDefined()

@@ -1,4 +1,4 @@
-import * as enrichments from './enrichments'
-import * as extractors from './extractors'
+import * as enrichments from './enrichments/index.js'
+import * as extractors from './extractors/index.js'
 
 export const plugins = { ...enrichments, ...extractors }

@@ -1,20 +1,19 @@
+import path from 'path'
 import type { ReactNode } from 'react'
-import { BaseFileSource } from './file_source'
-import {
+import { BaseFileSource } from './file_source.js'
+import type {
   IDirNode,
   IDocNode,
-  IMediaNode,
   ILoadedDocNode,
+  IMediaNode,
   IRenderableDocNode,
   MediaType,
   NavNode,
   Node,
   ReactOptions,
   ReactShape,
-  isDirNode,
-  isDocNode,
-} from './types'
-import path from 'path'
+} from './types.js'
+import { isDirNode, isDocNode } from './types.js'
 
 export class FileDirNode implements IDirNode {
   relPath: string
@@ -231,11 +230,12 @@ export abstract class AbstractFileDocNode
     this.source = source
     this.relPath = relPath
     this.type = 'file'
-    const title = frontmatter.title || path.basename(relPath, path.extname(relPath))
+    const title =
+      frontmatter.title || path.basename(relPath, path.extname(relPath))
     this.index = index
     this.depth = parent ? parent.depth + 1 : 0
     this.parent = parent
-    this.title = title 
+    this.title = title
     this.navTitle = frontmatter.navTitle || title
     this.indexDoc = source.isIndexDoc(relPath)
     this.frontmatter = frontmatter

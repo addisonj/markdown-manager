@@ -1,2 +1,2 @@
-export * from './tree_debug_printer'
-export * from './search_index'
+export * from './tree_debug_printer.js'
+export * from './search_index.js'

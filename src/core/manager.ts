@@ -1,18 +1,26 @@
-import { MarkdocFileProvider } from '../markdoc/markdoc'
-import { MdxFileProvider } from '../mdx/mdx'
-import {
+import { MarkdocFileProvider } from '../markdoc/markdoc.js'
+import { MdxFileProvider } from '../mdx/mdx.js'
+import type {
   ExtractorConfig,
   ManagerConfig,
   SourceConfig,
   UrlExtractorFunc,
   ValidatorConfig,
-} from './config'
-import { Extraction, IExtractor } from './extractor'
-import { BaseFileSource } from './file_source'
-import { LoggingApi, getLogger } from './logging'
-import { DocRepo } from './repo'
-import { DocProvider, IDirNode, IDocNode, IDocRepo, IDocSource, IMediaNode } from './types'
-import { IValidator } from './validator'
+} from './config.js'
+import type { Extraction, IExtractor } from './extractor.js'
+import { BaseFileSource } from './file_source.js'
+import type { LoggingApi } from './logging.js'
+import { getLogger } from './logging.js'
+import { DocRepo } from './repo.js'
+import type {
+  DocProvider,
+  IDirNode,
+  IDocNode,
+  IDocRepo,
+  IDocSource,
+  IMediaNode,
+} from './types.js'
+import type { IValidator } from './validator.js'
 
 export function defaultUrlExtractor(
   doc: IDirNode | IDocNode | IMediaNode

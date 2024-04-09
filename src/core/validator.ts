@@ -1,4 +1,4 @@
-import { DocLocation, IDocRepo } from './types'
+import type { DocLocation, IDocRepo } from './types.js'
 export type ValidationErrorLevels = 'info' | 'warning' | 'error' | 'critical'
 export const ValidationErrorLevels = [
   'info',

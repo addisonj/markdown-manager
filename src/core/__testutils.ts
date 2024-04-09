@@ -1,20 +1,21 @@
-import { AbstractFileDocNode } from './file_node'
-import { BaseFileSource } from './file_source'
-import {
+import Markdoc from '@markdoc/markdoc'
+import { Readable } from 'node:stream'
+import pino from 'pino'
+import pretty from 'pino-pretty'
+import type { IEnrichment } from './enrichment.js'
+import type { IExtractor } from './extractor.js'
+import { AbstractFileDocNode } from './file_node.js'
+import { BaseFileSource } from './file_source.js'
+import type { LoggingApi } from './logging.js'
+import { getLogger } from './logging.js'
+import type {
   DocProvider,
   IDirNode,
   IDocSource,
   ILoadedDocNode,
   OutLink,
-} from './types'
-import { Readable } from 'node:stream'
-import Markdoc from '@markdoc/markdoc'
-import pino from 'pino'
-import pretty from 'pino-pretty'
-import { LoggingApi, getLogger } from './logging'
-import { IEnrichment } from './enrichment'
-import { IExtractor } from './extractor'
-import { IValidator } from './validator'
+} from './types.js'
+import type { IValidator } from './validator.js'
 
 // mostly this is just initing the logger
 export function setupLogging() {

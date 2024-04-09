@@ -1,10 +1,18 @@
-import { BaseFileSource } from './file_source'
-import { IDirNode, IDocSource, IDocTree, IMediaNode, NavNode, Node, isDirNode, isDocNode, isMediaNode } from './types'
-
+import { BaseFileSource } from './file_source.js'
+import type {
+  IDocSource,
+  IDocTree,
+  IMediaNode,
+  NavNode,
+  Node,
+} from './types.js'
+import { isDirNode, isDocNode, isMediaNode } from './types.js'
 
 export abstract class AbstractBaseTree implements IDocTree {
-  constructor(public source: IDocSource, public children: Node[]) {
-  }
+  constructor(
+    public source: IDocSource,
+    public children: Node[]
+  ) {}
   navChildren(): NavNode[] {
     return this.children.flatMap((n) => {
       if (isDirNode(n) || isDocNode(n)) {
@@ -34,7 +42,7 @@ export abstract class AbstractBaseTree implements IDocTree {
   asJSON() {
     return {
       type: 'tree',
-      children: this.children.map((c) => c.asJSON())
+      children: this.children.map((c) => c.asJSON()),
     }
   }
 
@@ -48,7 +56,10 @@ export abstract class AbstractBaseTree implements IDocTree {
 }
 
 export class BaseDocTree extends AbstractBaseTree {
-  constructor(public source: BaseFileSource, public children: Node[]) {
+  constructor(
+    public source: BaseFileSource,
+    public children: Node[]
+  ) {
     super(source, children)
   }
 }

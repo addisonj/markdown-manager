@@ -1,8 +1,8 @@
-import admonitionPlugin from '@docusaurus/mdx-loader/lib/remark/admonitions'
+import admonitionPlugin from '@docusaurus/mdx-loader/lib/remark/admonitions/index.js'
 // TODO this plugin is causing compile errors downstream
 //import docusaurusHeaderPlugin from '@docusaurus/mdx-loader/lib/remark/headings'
-import { CompileOptions, RunOptions, compile, run } from '@mdx-js/mdx'
-import { EvaluateOptions } from '@mdx-js/mdx/lib/util/resolve-evaluate-options'
+import type { CompileOptions, EvaluateOptions, RunOptions } from '@mdx-js/mdx'
+import { compile, run } from '@mdx-js/mdx'
 import type { ReactNode } from 'react'
 import rehypeSlug from 'rehype-slug'
 import directivePlugin from 'remark-directive'
@@ -10,8 +10,9 @@ import emojiPlugin from 'remark-emoji'
 import frontmatterPlugin from 'remark-frontmatter'
 import remarkGfm from 'remark-gfm'
 import remarkMdxFrontmatter from 'remark-mdx-frontmatter'
-import {
-  AbstractFileDocNode,
+import { VFile } from 'vfile'
+import type { IEnrichment } from '../core/enrichment.js'
+import type {
   BaseFileSource,
   DocIndex,
   DocProvider,
@@ -27,12 +28,13 @@ import {
   ReactOptions,
   ReactShape,
   SourceConfig,
+} from '../core/index.js'
+import {
+  AbstractFileDocNode,
   isMdxOptions,
-} from '../core'
-import { IEnrichment } from '../core/enrichment'
-import { ContentTitlePlugin } from './mdxPlugins/content_title'
-import { SearchIndexPlugin } from './mdxPlugins/search_index'
-import { VFile } from 'vfile'
+} from '../core/index.js'
+import { ContentTitlePlugin } from './mdxPlugins/content_title.js'
+import { SearchIndexPlugin } from './mdxPlugins/search_index.js'
 
 export class MdxDocNode extends AbstractFileDocNode implements ILoadedDocNode {
   providerName: string = 'mdx-file'

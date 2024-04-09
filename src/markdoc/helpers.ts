@@ -1,14 +1,17 @@
-import { Node as MDNode, RenderableTreeNode, Tag } from '@markdoc/markdoc'
+import type { Node as MDNode, RenderableTreeNode } from '@markdoc/markdoc'
+import { Tag } from '@markdoc/markdoc'
 import GithubSlugger from 'github-slugger'
-import {
+import type {
   DocIndex,
   DocSection,
   HeaderSection,
   OutLink,
   StandaloneSection,
+} from '../core/index.js'
+import {
   extractOutLink,
-} from '../core'
-import { MarkdocDocNode } from './markdoc'
+} from '../core/index.js'
+import { MarkdocDocNode } from './markdoc.js'
 
 export function extractLinks(filePath: string, ast: MDNode): OutLink[] {
   const links: OutLink[] = []

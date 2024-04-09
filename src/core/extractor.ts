@@ -1,4 +1,4 @@
-import {IDocRepo} from './types'
+import type { IDocRepo } from './types.js'
 
 export type Extraction<GlobalData = any, NodeData = any> = {
   extractorName: string
